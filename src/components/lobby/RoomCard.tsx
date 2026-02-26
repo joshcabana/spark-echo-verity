@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Users, Crown, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import type { Room } from "@/data/rooms";
 
 interface RoomCardProps {
@@ -11,6 +12,7 @@ interface RoomCardProps {
 }
 
 const RoomCard = ({ room, index, isSelected, onSelect }: RoomCardProps) => {
+  const navigate = useNavigate();
   const occupancyPct = Math.round((room.occupancy / room.maxOccupancy) * 100);
   const Icon = room.icon;
 
@@ -103,7 +105,7 @@ const RoomCard = ({ room, index, isSelected, onSelect }: RoomCardProps) => {
           transition={{ duration: 0.3 }}
           className="mt-5 pt-5 border-t border-border"
         >
-          <Button variant="gold" size="lg" className="w-full group/btn">
+          <Button variant="gold" size="lg" className="w-full group/btn" onClick={() => navigate("/call")}>
             Enter {room.name}
             <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
           </Button>

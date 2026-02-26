@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Lobby from "./pages/Lobby";
+import LiveCall from "./pages/LiveCall";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/lobby" element={<Lobby />} />
+          <Route path="/call" element={<LiveCall />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
