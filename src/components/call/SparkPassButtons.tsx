@@ -4,25 +4,32 @@ import { Sparkles, X } from "lucide-react";
 
 interface SparkPassButtonsProps {
   onChoice: (choice: "spark" | "pass") => void;
+  elapsed: number;
 }
 
-const SparkPassButtons = ({ onChoice }: SparkPassButtonsProps) => {
+const SparkPassButtons = ({ onChoice, elapsed }: SparkPassButtonsProps) => {
+  const passDisabled = elapsed < 15;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-4"
+      transition={{ duration: 0.6 }}
     >
-      <p className="text-center text-sm text-muted-foreground mb-4">
-        Time's up. Did you feel it?
+      <p className="text-center font-serif text-lg text-foreground mb-2">
+        Time's up.
       </p>
-      <div className="flex items-center justify-center gap-6">
+      <p className="text-center text-sm text-muted-foreground mb-6">
+        Did you feel a spark?
+      </p>
+
+      <div className="flex items-center justify-center gap-5">
         <Button
           variant="outline"
           size="xl"
+          disabled={passDisabled}
           onClick={() => onChoice("pass")}
-          className="min-w-[140px] gap-2 border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+          className="min-w-[130px] gap-2 border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 disabled:opacity-40"
         >
           <X className="w-4 h-4" />
           Pass
@@ -31,14 +38,15 @@ const SparkPassButtons = ({ onChoice }: SparkPassButtonsProps) => {
           variant="gold"
           size="xl"
           onClick={() => onChoice("spark")}
-          className="min-w-[140px] gap-2"
+          className="min-w-[130px] gap-2"
         >
           <Sparkles className="w-4 h-4" />
           Spark
         </Button>
       </div>
-      <p className="text-center text-xs text-muted-foreground/50 mt-3">
-        Your choice is private. Only mutual sparks are revealed.
+
+      <p className="text-center text-[11px] text-muted-foreground/45 mt-4">
+        Your choice is completely private. Only mutual sparks are ever revealed.
       </p>
     </motion.div>
   );

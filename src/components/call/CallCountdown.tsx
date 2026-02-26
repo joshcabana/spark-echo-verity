@@ -7,37 +7,62 @@ interface CallCountdownProps {
 
 const CallCountdown = ({ seconds, total }: CallCountdownProps) => {
   const pct = seconds / total;
-  const radius = 18;
+  const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - pct);
 
+  // Colour transitions: gold → amber → red
+  const strokeColour =
+    seconds <= 5
+      ? "hsl(0 62% 50%)"
+      : seconds <= 15
+        ? "hsl(30 80% 55%)"
+        : "hsl(var(--primary))";
+
+  const textColour =
+    seconds <= 5
+      ? "text-destructive"
+      : seconds <= 15
+        ? "text-[hsl(30_80%_55%)]"
+        : "text-primary";
+
   return (
-    <div className="flex items-center gap-2">
-      <svg width="44" height="44" viewBox="0 0 44 44" className="-rotate-90">
-        <circle
-          cx="22"
-          cy="22"
-          r={radius}
-          fill="none"
-          stroke="hsl(var(--border))"
-          strokeWidth="2"
-        />
-        <motion.circle
-          cx="22"
-          cy="22"
-          r={radius}
-          fill="none"
-          stroke="hsl(var(--primary))"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-        />
-      </svg>
-      <span className={`text-sm font-medium tabular-nums ${seconds <= 10 ? "text-destructive" : "text-foreground"}`}>
-        {seconds}s
-      </span>
+    <div className="flex flex-col items-center">
+      <div className="relative">
+        <svg width="72" height="72" viewBox="0 0 72 72" className="-rotate-90">
+          <circle
+            cx="36"
+            cy="36"
+            r={radius}
+            fill="none"
+            stroke="hsl(var(--border))"
+            strokeWidth="2.5"
+          />
+          <motion.circle
+            cx="36"
+            cy="36"
+            r={radius}
+            fill="none"
+            stroke={strokeColour}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            animate={{ strokeDashoffset: offset }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <motion.span
+            key={seconds}
+            initial={{ scale: 1.15, opacity: 0.7 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className={`font-serif text-2xl tabular-nums ${textColour}`}
+          >
+            {seconds}
+          </motion.span>
+        </div>
+      </div>
     </div>
   );
 };

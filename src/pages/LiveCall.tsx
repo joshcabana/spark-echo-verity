@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, LogOut, Phone, UserPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Shield, UserPlus, LogOut, Phone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import CallCountdown from "@/components/call/CallCountdown";
+import CallControls from "@/components/call/CallControls";
+import ConnectionIndicator from "@/components/call/ConnectionIndicator";
+import VideoArea from "@/components/call/VideoArea";
 import SparkPassButtons from "@/components/call/SparkPassButtons";
 import GuardianNet from "@/components/call/GuardianNet";
+import SafeExitModal from "@/components/call/SafeExitModal";
 import SparkReflection from "@/components/call/SparkReflection";
 import VoiceIntro from "@/components/call/VoiceIntro";
 import MutualSparkReveal from "@/components/call/MutualSparkReveal";
@@ -21,16 +24,22 @@ type CallPhase =
   | "voice-intro"
   | "complete";
 
+const CALL_DURATION = 45;
+
 const LiveCall = () => {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<CallPhase>("connecting");
-  const [secondsLeft, setSecondsLeft] = useState(45);
+  const [secondsLeft, setSecondsLeft] = useState(CALL_DURATION);
+  const [elapsed, setElapsed] = useState(0);
   const [guardianOpen, setGuardianOpen] = useState(false);
+  const [exitOpen, setExitOpen] = useState(false);
   const [myChoice, setMyChoice] = useState<"spark" | "pass" | null>(null);
+  const [micOn, setMicOn] = useState(true);
+  const [cameraOn, setCameraOn] = useState(true);
 
   // Simulate connection
   useEffect(() => {
-    const t = setTimeout(() => setPhase("live"), 2500);
+    const t = setTimeout(() => setPhase("live"), 2800);
     return () => clearTimeout(t);
   }, []);
 
@@ -41,50 +50,63 @@ const LiveCall = () => {
       setPhase("deciding");
       return;
     }
-    const t = setInterval(() => setSecondsLeft((s) => s - 1), 1000);
+    const t = setInterval(() => {
+      setSecondsLeft((s) => s - 1);
+      setElapsed((e) => e + 1);
+    }, 1000);
     return () => clearInterval(t);
   }, [phase, secondsLeft]);
 
   const handleChoice = useCallback((choice: "spark" | "pass") => {
     setMyChoice(choice);
     setPhase("waiting");
-    // Simulate partner's response after 2s
+    // Simulate partner response
     setTimeout(() => {
-      // 60% chance of mutual spark for demo
-      const partnerSparked = choice === "spark" && Math.random() > 0.4;
+      const partnerSparked = choice === "spark" && Math.random() > 0.35;
       setPhase(partnerSparked ? "mutual-spark" : "no-spark");
-    }, 2000);
+    }, 2200);
   }, []);
 
-  const handleSafeExit = () => {
+  const handleSafeExit = useCallback(() => {
+    setExitOpen(false);
     navigate("/lobby");
-  };
+  }, [navigate]);
+
+  const isMutual = myChoice === "spark" && phase !== "no-spark";
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
       <AnimatePresence mode="wait">
-        {/* ─── CONNECTING ─── */}
+        {/* ═══ CONNECTING ═══ */}
         {phase === "connecting" && (
           <motion.div
             key="connecting"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-center gap-6"
+            className="flex-1 flex flex-col items-center justify-center gap-7 px-6"
           >
-            <div className="w-16 h-16 rounded-full border-2 border-primary/30 flex items-center justify-center">
-              <Phone className="w-6 h-6 text-primary animate-pulse-gold" />
-            </div>
+            <motion.div
+              animate={{ scale: [1, 1.08, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-20 h-20 rounded-full border-2 border-primary/25 flex items-center justify-center"
+            >
+              <Phone className="w-7 h-7 text-primary" />
+            </motion.div>
             <div className="text-center">
-              <p className="font-serif text-xl text-foreground mb-2">Finding your match…</p>
-              <p className="text-sm text-muted-foreground">Anonymous connection loading</p>
+              <p className="font-serif text-2xl text-foreground mb-2">
+                Connecting you now…
+              </p>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
+                Your call is fully anonymous. Relax — just be yourself.
+              </p>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1.5">
               {[0, 1, 2].map((i) => (
                 <motion.div
                   key={i}
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                  animate={{ opacity: [0.25, 1, 0.25] }}
+                  transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
                   className="w-2 h-2 rounded-full bg-primary"
                 />
               ))}
@@ -92,7 +114,7 @@ const LiveCall = () => {
           </motion.div>
         )}
 
-        {/* ─── LIVE CALL ─── */}
+        {/* ═══ LIVE CALL / DECIDING ═══ */}
         {(phase === "live" || phase === "deciding") && (
           <motion.div
             key="live"
@@ -101,76 +123,83 @@ const LiveCall = () => {
             exit={{ opacity: 0 }}
             className="flex-1 flex flex-col"
           >
-            {/* Top bar */}
-            <div className="flex items-center justify-between px-6 py-4">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Shield className="w-3.5 h-3.5 text-primary/60" />
-                <span>AI safety active</span>
+            {/* ── Top bar ── */}
+            <div className="relative z-10 flex items-center justify-between px-5 pt-4 pb-2">
+              {/* Left: safety + connection */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+                  <Shield className="w-3 h-3 text-primary/50" />
+                  <span>Safety on</span>
+                </div>
+                <ConnectionIndicator quality="excellent" />
               </div>
-              <CallCountdown seconds={secondsLeft} total={45} />
-              <button
-                onClick={() => setGuardianOpen(true)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Guardian</span>
-              </button>
+
+              {/* Centre: countdown */}
+              <div className="absolute left-1/2 -translate-x-1/2 top-2">
+                <CallCountdown seconds={secondsLeft} total={CALL_DURATION} />
+              </div>
+
+              {/* Right: Guardian + Safe Exit */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setGuardianOpen(true)}
+                  className="w-9 h-9 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+                  aria-label="Guardian Net"
+                >
+                  <UserPlus className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setExitOpen(true)}
+                  className="w-9 h-9 rounded-full bg-destructive/10 flex items-center justify-center text-destructive/70 hover:text-destructive hover:bg-destructive/20 transition-all"
+                  aria-label="Safe Exit"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Video area (simulated) */}
-            <div className="flex-1 flex items-center justify-center relative">
-              {/* Simulated anonymous silhouette */}
-              <div className="w-48 h-48 md:w-64 md:h-64 rounded-full bg-secondary/50 border border-border flex items-center justify-center">
-                <div className="w-20 h-20 md:w-28 md:h-28 rounded-full bg-secondary border border-border/50" />
-              </div>
-              {/* Pulse ring */}
-              <motion.div
-                animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0, 0.2] }}
-                transition={{ duration: 3, repeat: Infinity }}
-                className="absolute w-48 h-48 md:w-64 md:h-64 rounded-full border border-primary/20"
-              />
-            </div>
+            {/* ── Video area ── */}
+            <VideoArea />
 
-            {/* Bottom controls */}
-            <div className="px-6 pb-8 pt-4">
+            {/* ── Bottom controls ── */}
+            <div className="relative z-10 px-6 pb-8 pt-4">
               {phase === "deciding" ? (
-                <SparkPassButtons onChoice={handleChoice} />
+                <SparkPassButtons onChoice={handleChoice} elapsed={elapsed} />
               ) : (
                 <div className="flex items-center justify-center">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={handleSafeExit}
-                    className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/50"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Safe Exit
-                  </Button>
+                  <CallControls
+                    micOn={micOn}
+                    cameraOn={cameraOn}
+                    onToggleMic={() => setMicOn((v) => !v)}
+                    onToggleCamera={() => setCameraOn((v) => !v)}
+                  />
                 </div>
               )}
             </div>
           </motion.div>
         )}
 
-        {/* ─── WAITING ─── */}
+        {/* ═══ WAITING ═══ */}
         {phase === "waiting" && (
           <motion.div
             key="waiting"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-center gap-6"
+            className="flex-1 flex flex-col items-center justify-center gap-5 px-6"
           >
-            <p className="font-serif text-xl text-foreground">
+            <p className="font-serif text-2xl text-foreground">
               {myChoice === "spark" ? "Spark sent." : "Choice recorded."}
             </p>
-            <p className="text-sm text-muted-foreground">Waiting for their decision…</p>
-            <div className="flex gap-1">
+            <p className="text-sm text-muted-foreground">
+              Waiting for their decision…
+            </p>
+            <div className="flex gap-1.5">
               {[0, 1, 2].map((i) => (
                 <motion.div
                   key={i}
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                  animate={{ opacity: [0.25, 1, 0.25] }}
+                  transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
                   className="w-2 h-2 rounded-full bg-primary"
                 />
               ))}
@@ -178,12 +207,12 @@ const LiveCall = () => {
           </motion.div>
         )}
 
-        {/* ─── MUTUAL SPARK ─── */}
+        {/* ═══ MUTUAL SPARK ═══ */}
         {phase === "mutual-spark" && (
           <MutualSparkReveal onContinue={() => setPhase("reflection")} />
         )}
 
-        {/* ─── NO SPARK ─── */}
+        {/* ═══ NO SPARK ═══ */}
         {phase === "no-spark" && (
           <motion.div
             key="no-spark"
@@ -192,41 +221,58 @@ const LiveCall = () => {
             exit={{ opacity: 0 }}
             className="flex-1 flex flex-col items-center justify-center gap-6 px-6"
           >
-            <p className="font-serif text-2xl text-foreground text-center">
-              No spark this time.
-            </p>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Neither party knows who chose what. That's the Verity promise — dignity always.
-            </p>
-            <Button variant="gold-outline" size="lg" onClick={() => setPhase("reflection")}>
-              View Spark Reflection
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/lobby")} className="text-muted-foreground">
-              Return to lobby
-            </Button>
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.6 }}
+              className="text-center"
+            >
+              <p className="font-serif text-2xl md:text-3xl text-foreground mb-3">
+                Thank you for your honesty.
+              </p>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                Neither party knows who chose what. That's the Verity promise — dignity, always.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="flex flex-col items-center gap-3"
+            >
+              <button
+                onClick={() => setPhase("reflection")}
+                className="text-sm text-primary hover:text-primary/80 transition-colors"
+              >
+                View your Spark Reflection
+              </button>
+              <button
+                onClick={() => navigate("/lobby")}
+                className="text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              >
+                Return to lobby
+              </button>
+            </motion.div>
           </motion.div>
         )}
 
-        {/* ─── SPARK REFLECTION ─── */}
+        {/* ═══ SPARK REFLECTION ═══ */}
         {phase === "reflection" && (
           <SparkReflection
-            wasMutual={myChoice === "spark"}
+            wasMutual={isMutual}
             onContinue={() => {
-              if (myChoice === "spark") {
-                setPhase("voice-intro");
-              } else {
-                setPhase("complete");
-              }
+              setPhase(isMutual ? "voice-intro" : "complete");
             }}
           />
         )}
 
-        {/* ─── VOICE INTRO ─── */}
+        {/* ═══ VOICE INTRO ═══ */}
         {phase === "voice-intro" && (
           <VoiceIntro onComplete={() => setPhase("complete")} />
         )}
 
-        {/* ─── COMPLETE ─── */}
+        {/* ═══ COMPLETE ═══ */}
         {phase === "complete" && (
           <motion.div
             key="complete"
@@ -234,25 +280,41 @@ const LiveCall = () => {
             animate={{ opacity: 1 }}
             className="flex-1 flex flex-col items-center justify-center gap-6 px-6"
           >
-            <p className="font-serif text-2xl text-foreground text-center">
-              {myChoice === "spark" ? "Connection made." : "Until next time."}
-            </p>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              {myChoice === "spark"
-                ? "Chat is now unlocked. You'll find them in your Sparks."
-                : "Every call is a chance to learn something about yourself."}
-            </p>
-            <div className="flex gap-3">
-              <Button variant="gold" size="lg" onClick={() => navigate("/lobby")}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.8 }}
+              className="text-center"
+            >
+              <p className="font-serif text-2xl md:text-3xl text-foreground mb-3">
+                {isMutual ? "Connection made." : "Until next time."}
+              </p>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                {isMutual
+                  ? "Chat is now unlocked. You'll find them in your Sparks."
+                  : "Every call teaches you something about what you're looking for."}
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+            >
+              <button
+                onClick={() => navigate("/lobby")}
+                className="text-sm text-primary hover:text-primary/80 transition-colors"
+              >
                 Back to lobby
-              </Button>
-            </div>
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Guardian Net modal */}
+      {/* Modals */}
       <GuardianNet open={guardianOpen} onClose={() => setGuardianOpen(false)} />
+      <SafeExitModal open={exitOpen} onClose={() => setExitOpen(false)} onConfirm={handleSafeExit} />
     </div>
   );
 };
