@@ -9,6 +9,7 @@ import Lobby from "./pages/Lobby";
 import LiveCall from "./pages/LiveCall";
 import SparkHistory from "./pages/SparkHistory";
 import Chat from "./pages/Chat";
+import TokenShop from "./pages/TokenShop";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/call" element={<LiveCall />} />
           <Route path="/sparks" element={<SparkHistory />} />
           <Route path="/chat/:sparkId" element={<Chat />} />
+          <Route path="/tokens" element={<TokenShop />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
