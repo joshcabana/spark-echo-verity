@@ -10,6 +10,9 @@ import LiveCall from "./pages/LiveCall";
 import SparkHistory from "./pages/SparkHistory";
 import Chat from "./pages/Chat";
 import TokenShop from "./pages/TokenShop";
+import Admin from "./pages/Admin";
+import Transparency from "./pages/Transparency";
+import Appeal from "./pages/Appeal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +31,9 @@ const App = () => (
           <Route path="/sparks" element={<SparkHistory />} />
           <Route path="/chat/:sparkId" element={<Chat />} />
           <Route path="/tokens" element={<TokenShop />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/transparency" element={<Transparency />} />
+          <Route path="/appeal" element={<Appeal />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
