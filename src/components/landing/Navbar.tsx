@@ -1,0 +1,48 @@
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { motion, AnimatePresence } from "framer-motion";
+
+const Navbar = () => {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <motion.nav
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        scrolled
+          ? "bg-background/80 backdrop-blur-xl border-b border-border/50"
+          : "bg-transparent"
+      }`}
+    >
+      <div className="container max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <Link to="/" className="font-serif text-xl text-foreground hover:text-primary transition-colors">
+          Verity
+        </Link>
+        <div className="flex items-center gap-6">
+          <a
+            href="#how-it-works"
+            className="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            How it works
+          </a>
+          <Link to="/auth">
+            <Button variant="gold-outline" size="sm">
+              Join
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </motion.nav>
+  );
+};
+
+export default Navbar;
