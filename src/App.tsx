@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Lobby from "./pages/Lobby";
@@ -23,19 +25,21 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/lobby" element={<Lobby />} />
-          <Route path="/call" element={<LiveCall />} />
-          <Route path="/sparks" element={<SparkHistory />} />
-          <Route path="/chat/:sparkId" element={<Chat />} />
-          <Route path="/tokens" element={<TokenShop />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/transparency" element={<Transparency />} />
-          <Route path="/appeal" element={<Appeal />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/lobby" element={<ProtectedRoute><Lobby /></ProtectedRoute>} />
+            <Route path="/call" element={<ProtectedRoute><LiveCall /></ProtectedRoute>} />
+            <Route path="/sparks" element={<ProtectedRoute><SparkHistory /></ProtectedRoute>} />
+            <Route path="/chat/:sparkId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+            <Route path="/tokens" element={<ProtectedRoute><TokenShop /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
+            <Route path="/transparency" element={<Transparency />} />
+            <Route path="/appeal" element={<ProtectedRoute><Appeal /></ProtectedRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
