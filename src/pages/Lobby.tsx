@@ -1,69 +1,88 @@
-import { useState } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Shield } from "lucide-react";
+import { Shield, User } from "lucide-react";
 import { Link } from "react-router-dom";
-import { rooms, getSuggestedRoom } from "@/data/rooms";
-import RoomCard from "@/components/lobby/RoomCard";
-import SuggestionPill from "@/components/lobby/SuggestionPill";
+import { rooms, getSuggestedRoom, type Room } from "@/data/rooms";
+import LobbyRoomCard from "@/components/lobby/LobbyRoomCard";
+import LobbyHeader from "@/components/lobby/LobbyHeader";
+import MatchmakingOverlay from "@/components/lobby/MatchmakingOverlay";
+import BottomNav from "@/components/BottomNav";
 
 const Lobby = () => {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [matchmaking, setMatchmaking] = useState<{ active: boolean; roomName: string }>({
+    active: false,
+    roomName: "",
+  });
   const suggested = getSuggestedRoom();
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const handleSelect = (roomId: string) => {
+  const handleSelect = useCallback((roomId: string) => {
     setSelectedRoom((prev) => (prev === roomId ? null : roomId));
-  };
+  }, []);
+
+  const handleSuggestionClick = useCallback(() => {
+    setSelectedRoom(suggested.id);
+    // Scroll the suggested card into view
+    const el = cardRefs.current.get(suggested.id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [suggested.id]);
+
+  const handleEnterRoom = useCallback((room: Room) => {
+    setMatchmaking({ active: true, roomName: room.name });
+  }, []);
+
+  const handleCancelMatchmaking = useCallback(() => {
+    setMatchmaking({ active: false, roomName: "" });
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border">
-        <div className="container max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
+    <div className="min-h-screen bg-background pb-20">
+      {/* Top bar */}
+      <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
+        <div className="container max-w-2xl mx-auto px-5 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <span className="font-serif text-lg text-foreground">Verity</span>
-          </Link>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Shield className="w-3.5 h-3.5 text-primary/60" />
-            <span>AI safety active</span>
+            <div className="flex items-center gap-1 ml-3 text-[10px] text-muted-foreground/60">
+              <Shield className="w-3 h-3 text-primary/50" />
+              <span>AI safety on</span>
+            </div>
           </div>
+          <Link
+            to="/profile"
+            className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors"
+          >
+            <User className="w-4 h-4 text-muted-foreground" />
+          </Link>
         </div>
       </header>
 
-      <main className="container max-w-5xl mx-auto px-6 py-10 md:py-16">
-        {/* Heading */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="mb-10"
-        >
-          <h1 className="font-serif text-3xl md:text-4xl text-foreground mb-3">
-            Choose your room.
-          </h1>
-          <p className="text-muted-foreground max-w-lg">
-            Each room curates the energy. Enter one that fits your mood — you'll be matched with someone who chose the same.
-          </p>
-        </motion.div>
+      <main className="container max-w-2xl mx-auto px-5 pt-8">
+        <LobbyHeader
+          suggestedRoomName={suggested.name}
+          onSuggestionClick={handleSuggestionClick}
+        />
 
-        {/* Suggestion pill */}
-        <div className="mb-8">
-          <SuggestionPill room={suggested} onSelect={handleSelect} />
-        </div>
-
-        {/* Room grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Room cards */}
+        <div className="space-y-5">
           {rooms.map((room, i) => (
-            <RoomCard
+            <div
               key={room.id}
-              room={room}
-              index={i}
-              isSelected={selectedRoom === room.id}
-              onSelect={handleSelect}
-            />
+              ref={(el) => {
+                if (el) cardRefs.current.set(room.id, el);
+              }}
+            >
+              <LobbyRoomCard
+                room={room}
+                index={i}
+                isSelected={selectedRoom === room.id}
+                isSuggested={suggested.id === room.id}
+                onSelect={handleSelect}
+                onEnter={handleEnterRoom}
+              />
+            </div>
           ))}
         </div>
 
@@ -72,11 +91,20 @@ const Lobby = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 0.8 }}
-          className="mt-12 text-center text-xs text-muted-foreground/50 tracking-wide"
+          className="mt-10 mb-6 text-center text-[11px] text-muted-foreground/40 leading-relaxed"
         >
           All calls are anonymous · AI-moderated in real time · Nothing is stored
         </motion.p>
       </main>
+
+      <BottomNav activeTab="go-live" />
+
+      {/* Matchmaking overlay */}
+      <MatchmakingOverlay
+        open={matchmaking.active}
+        roomName={matchmaking.roomName}
+        onCancel={handleCancelMatchmaking}
+      />
     </div>
   );
 };
