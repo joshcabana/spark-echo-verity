@@ -14,16 +14,516 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appeals: {
+        Row: {
+          admin_response: string | null
+          created_at: string
+          explanation: string
+          flag_id: string | null
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["appeal_status"] | null
+          user_id: string
+          voice_note_url: string | null
+        }
+        Insert: {
+          admin_response?: string | null
+          created_at?: string
+          explanation: string
+          flag_id?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["appeal_status"] | null
+          user_id: string
+          voice_note_url?: string | null
+        }
+        Update: {
+          admin_response?: string | null
+          created_at?: string
+          explanation?: string
+          flag_id?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["appeal_status"] | null
+          user_id?: string
+          voice_note_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appeals_flag_id_fkey"
+            columns: ["flag_id"]
+            isOneToOne: false
+            referencedRelation: "moderation_flags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calls: {
+        Row: {
+          agora_channel: string | null
+          callee_decision: Database["public"]["Enums"]["spark_decision"] | null
+          callee_id: string
+          caller_decision: Database["public"]["Enums"]["spark_decision"] | null
+          caller_id: string
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          is_mutual_spark: boolean | null
+          room_id: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["call_status"] | null
+        }
+        Insert: {
+          agora_channel?: string | null
+          callee_decision?: Database["public"]["Enums"]["spark_decision"] | null
+          callee_id: string
+          caller_decision?: Database["public"]["Enums"]["spark_decision"] | null
+          caller_id: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          is_mutual_spark?: boolean | null
+          room_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["call_status"] | null
+        }
+        Update: {
+          agora_channel?: string | null
+          callee_decision?: Database["public"]["Enums"]["spark_decision"] | null
+          callee_id?: string
+          caller_decision?: Database["public"]["Enums"]["spark_decision"] | null
+          caller_id?: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          is_mutual_spark?: boolean | null
+          room_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["call_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      matchmaking_queue: {
+        Row: {
+          id: string
+          joined_at: string
+          matched_at: string | null
+          room_id: string
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          matched_at?: string | null
+          room_id: string
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          matched_at?: string | null
+          room_id?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matchmaking_queue_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          is_read: boolean | null
+          is_voice: boolean | null
+          sender_id: string
+          spark_id: string
+          voice_url: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          is_voice?: boolean | null
+          sender_id: string
+          spark_id: string
+          voice_url?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          is_voice?: boolean | null
+          sender_id?: string
+          spark_id?: string
+          voice_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_spark_id_fkey"
+            columns: ["spark_id"]
+            isOneToOne: false
+            referencedRelation: "sparks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      moderation_flags: {
+        Row: {
+          action_taken: Database["public"]["Enums"]["moderation_action"] | null
+          ai_confidence: number | null
+          call_id: string | null
+          clip_url: string | null
+          created_at: string
+          flagged_user_id: string
+          id: string
+          reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        Insert: {
+          action_taken?: Database["public"]["Enums"]["moderation_action"] | null
+          ai_confidence?: number | null
+          call_id?: string | null
+          clip_url?: string | null
+          created_at?: string
+          flagged_user_id: string
+          id?: string
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Update: {
+          action_taken?: Database["public"]["Enums"]["moderation_action"] | null
+          ai_confidence?: number | null
+          call_id?: string | null
+          clip_url?: string | null
+          created_at?: string
+          flagged_user_id?: string
+          id?: string
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_flags_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_stats: {
+        Row: {
+          active_users: number | null
+          ai_accuracy: number | null
+          appeals_total: number | null
+          appeals_upheld: number | null
+          created_at: string
+          gender_balance: Json | null
+          id: string
+          moderation_flags_count: number | null
+          stat_date: string
+          total_calls: number | null
+          total_sparks: number | null
+        }
+        Insert: {
+          active_users?: number | null
+          ai_accuracy?: number | null
+          appeals_total?: number | null
+          appeals_upheld?: number | null
+          created_at?: string
+          gender_balance?: Json | null
+          id?: string
+          moderation_flags_count?: number | null
+          stat_date?: string
+          total_calls?: number | null
+          total_sparks?: number | null
+        }
+        Update: {
+          active_users?: number | null
+          ai_accuracy?: number | null
+          appeals_total?: number | null
+          appeals_upheld?: number | null
+          created_at?: string
+          gender_balance?: Json | null
+          id?: string
+          moderation_flags_count?: number | null
+          stat_date?: string
+          total_calls?: number | null
+          total_sparks?: number | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          age: number | null
+          avatar_url: string | null
+          bio: string | null
+          city: string | null
+          created_at: string
+          display_name: string | null
+          gender: string | null
+          handle: string | null
+          id: string
+          is_active: boolean | null
+          subscription_expires_at: string | null
+          subscription_tier:
+            | Database["public"]["Enums"]["subscription_tier"]
+            | null
+          token_balance: number
+          updated_at: string
+          user_id: string
+          verification_status: string | null
+        }
+        Insert: {
+          age?: number | null
+          avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          created_at?: string
+          display_name?: string | null
+          gender?: string | null
+          handle?: string | null
+          id?: string
+          is_active?: boolean | null
+          subscription_expires_at?: string | null
+          subscription_tier?:
+            | Database["public"]["Enums"]["subscription_tier"]
+            | null
+          token_balance?: number
+          updated_at?: string
+          user_id: string
+          verification_status?: string | null
+        }
+        Update: {
+          age?: number | null
+          avatar_url?: string | null
+          bio?: string | null
+          city?: string | null
+          created_at?: string
+          display_name?: string | null
+          gender?: string | null
+          handle?: string | null
+          id?: string
+          is_active?: boolean | null
+          subscription_expires_at?: string | null
+          subscription_tier?:
+            | Database["public"]["Enums"]["subscription_tier"]
+            | null
+          token_balance?: number
+          updated_at?: string
+          user_id?: string
+          verification_status?: string | null
+        }
+        Relationships: []
+      }
+      rooms: {
+        Row: {
+          active_users: number | null
+          category: string | null
+          created_at: string
+          description: string | null
+          gender_balance: Json | null
+          icon: string | null
+          id: string
+          is_premium: boolean | null
+          name: string
+        }
+        Insert: {
+          active_users?: number | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          gender_balance?: Json | null
+          icon?: string | null
+          id?: string
+          is_premium?: boolean | null
+          name: string
+        }
+        Update: {
+          active_users?: number | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          gender_balance?: Json | null
+          icon?: string | null
+          id?: string
+          is_premium?: boolean | null
+          name?: string
+        }
+        Relationships: []
+      }
+      runtime_alert_events: {
+        Row: {
+          created_at: string
+          id: string
+          level: string | null
+          message: string
+          metadata: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level?: string | null
+          message: string
+          metadata?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: string | null
+          message?: string
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
+      sparks: {
+        Row: {
+          ai_insight: string | null
+          call_id: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_archived: boolean | null
+          user_a: string
+          user_b: string
+          voice_intro_a: string | null
+          voice_intro_b: string | null
+        }
+        Insert: {
+          ai_insight?: string | null
+          call_id: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_archived?: boolean | null
+          user_a: string
+          user_b: string
+          voice_intro_a?: string | null
+          voice_intro_b?: string | null
+        }
+        Update: {
+          ai_insight?: string | null
+          call_id?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_archived?: boolean | null
+          user_a?: string
+          user_b?: string
+          voice_intro_a?: string | null
+          voice_intro_b?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sparks_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      token_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          reason: string
+          stripe_session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          reason: string
+          stripe_session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          reason?: string
+          stripe_session_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_spark_member: {
+        Args: { _spark_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
+      appeal_status: "pending" | "upheld" | "denied"
+      call_status: "waiting" | "active" | "completed" | "cancelled"
+      moderation_action: "ban" | "warn" | "clear"
+      spark_decision: "spark" | "pass"
+      subscription_tier: "free" | "pass_monthly" | "pass_annual"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +650,13 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+      appeal_status: ["pending", "upheld", "denied"],
+      call_status: ["waiting", "active", "completed", "cancelled"],
+      moderation_action: ["ban", "warn", "clear"],
+      spark_decision: ["spark", "pass"],
+      subscription_tier: ["free", "pass_monthly", "pass_annual"],
+    },
   },
 } as const
