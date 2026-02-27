@@ -1,248 +1,93 @@
 
 
-# Verity vNext — Real End-to-End Loop Implementation Plan
+# Security Hardening Plan — 5 Remaining Findings
 
-## Overview
-Replace all simulated/mock flows with real Supabase + Agora-backed logic. After this update, the core loop works: Drop → Match → 45s Video Call → Spark/Pass → Chat.
+## 1. `create-checkout` — Auth + Price Allowlist + URL Allowlist (HIGH)
 
----
+**File:** `supabase/functions/create-checkout/index.ts` — full rewrite
 
-## Phase 1: Database Migrations
+- Add JWT authentication (same pattern as customer-portal: parse Authorization header, getUser)
+- Use authenticated user's email instead of accepting `customer_email` from body
+- Hardcode an allowlist of valid Stripe price IDs (or use a `price_id → { tokens, mode }` map):
+  ```
+  const PRICE_MAP = {
+    "price_starter_10": { mode: "payment" },
+    "price_popular_15": { mode: "payment" },
+    "price_value_30": { mode: "payment" },
+    "price_pass_monthly": { mode: "subscription" },
+    "price_pass_annual": { mode: "subscription" },
+  };
+  ```
+  Reject any price_id not in the map. Derive `mode` from the map instead of `price_id.includes("sub")`.
+- For `success_url` / `cancel_url`: build them server-side from an allowlisted origin list (the published URL + preview URL). Do NOT accept arbitrary URLs from the client. Remove `urlRegex` acceptance.
+- Remove `customer_email` from request body entirely.
 
-### Migration 1: matchmaking_queue enhancements + user_blocks
-```sql
--- Add drop_id and call_id to matchmaking_queue
-ALTER TABLE public.matchmaking_queue ADD COLUMN drop_id uuid REFERENCES public.drops(id) ON DELETE CASCADE;
-ALTER TABLE public.matchmaking_queue ADD COLUMN call_id uuid REFERENCES public.calls(id);
-ALTER TABLE public.matchmaking_queue ADD CONSTRAINT matchmaking_queue_user_drop_unique UNIQUE(user_id, drop_id);
-CREATE INDEX idx_matchmaking_queue_drop_status ON public.matchmaking_queue(drop_id, status, joined_at);
+## 2. `customer-portal` — Open Redirect Fix (HIGH)
 
--- user_blocks table
-CREATE TABLE public.user_blocks (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  blocker_id uuid NOT NULL,
-  blocked_id uuid NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(blocker_id, blocked_id)
-);
-ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
--- RLS: users manage own blocks
-CREATE POLICY "Users can insert own blocks" ON public.user_blocks FOR INSERT WITH CHECK (auth.uid() = blocker_id);
-CREATE POLICY "Users can view own blocks" ON public.user_blocks FOR SELECT USING (auth.uid() = blocker_id);
-CREATE POLICY "Users can delete own blocks" ON public.user_blocks FOR DELETE USING (auth.uid() = blocker_id);
+**File:** `supabase/functions/customer-portal/index.ts` — lines 70-72
 
--- Storage bucket for selfie verifications
-INSERT INTO storage.buckets (id, name, public) VALUES ('verifications', 'verifications', false);
-CREATE POLICY "Users can upload own selfies" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'verifications' AND (storage.foldername(name))[1] = 'selfies' AND (storage.foldername(name))[2] = auth.uid()::text);
-CREATE POLICY "Users can view own selfies" ON storage.objects FOR SELECT USING (bucket_id = 'verifications' AND (storage.foldername(name))[2] = auth.uid()::text);
+Replace the `return_url.startsWith("http")` check with an origin allowlist:
+```typescript
+const ALLOWED_ORIGINS = [
+  "https://spark-echo-verity.lovable.app",
+  "https://id-preview--a81e90ba-a208-41e2-bf07-a3adfb94bfcb.lovable.app",
+];
+const origin = req.headers.get("origin") || "";
+const safeReturnUrl = (typeof return_url === "string" && ALLOWED_ORIGINS.some(o => return_url.startsWith(o)))
+  ? return_url
+  : `${ALLOWED_ORIGINS[0]}/tokens`;
 ```
 
----
+## 3. `agora-token` — Real Token Generation + Generic Errors (MED/HIGH)
 
-## Phase 2: Edge Function — `find-match` (real implementation)
+**File:** `supabase/functions/agora-token/index.ts` — full rewrite
 
-Rewrite `supabase/functions/find-match/index.ts`:
-- Authenticate user from JWT
-- Create Supabase client with SERVICE_ROLE_KEY
-- Validate drop exists and status is "live"
-- Upsert user into matchmaking_queue (user_id, room_id, drop_id, status: "waiting")
-- Use `FOR UPDATE SKIP LOCKED` in a single query to find oldest waiting user in same drop (excluding self, excluding blocked users in either direction via user_blocks)
-- If match found: create `calls` row, update both queue entries to "matched" with call_id, return `{ status: "matched", call_id, agora_channel }`
-- If no match: return `{ status: "queued" }`
+- Import `npm:agora-token` to use `RtcTokenBuilder` and `RtcRole`
+- Generate a real token with ~10 min expiry using `buildTokenWithUid`
+- Replace the catch block's `error.message` leak with a generic `"An error occurred"` message; log the real error with `console.error`
 
----
+## 4. `stripe-webhook` — Idempotency + Customer ID Mapping (MED/HIGH)
 
-## Phase 3: Edge Function — `agora-token` (real implementation)
+**File:** `supabase/functions/stripe-webhook/index.ts` — significant rewrite
 
-Rewrite `supabase/functions/agora-token/index.ts`:
-- Authenticate user from JWT
-- Accept `{ call_id, channel }`
-- Verify user is caller_id or callee_id on the call
-- Generate real RTC token using `agora-token` npm package (via `npm:agora-token`)
-- Use AGORA_APP_ID + AGORA_APP_CERTIFICATE secrets
-- Return `{ token, uid, appId }` with ~10 min TTL
+**New migration:** Create `stripe_processed_events` table for idempotency:
+```sql
+CREATE TABLE public.stripe_processed_events (
+  event_id text PRIMARY KEY,
+  processed_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.stripe_processed_events ENABLE ROW LEVEL SECURITY;
+-- No user-facing RLS needed; only service role writes
+```
 
-**Note:** AGORA_APP_ID and AGORA_APP_CERTIFICATE secrets must be added by user.
+**Also add** `stripe_customer_id text` column to `profiles` table.
 
----
+**Webhook logic changes:**
+- On event receipt, INSERT into `stripe_processed_events`. If conflict (already exists), return `{ received: true }` immediately (idempotent).
+- In `checkout.session.completed`: look up user by `session.customer` (Stripe customer ID) against `profiles.stripe_customer_id`. If not found, fall back to expanding the customer object to get email, then query `auth.admin.listUsers` with proper filter. Store `stripe_customer_id` on the profile for future lookups.
+- For `customer.subscription.deleted`: use `sub.customer` (always present) to look up by `stripe_customer_id`.
+- Use the price ID → entitlement map (same as create-checkout) instead of amount thresholds for token grants.
 
-## Phase 4: Routing — `/call/:callId`
+## 5. `ai-moderate` — Remove False Safety Claim (HIGH integrity)
 
-### `src/App.tsx`
-- Change route from `/call` to `/call/:callId`
+**File:** `src/pages/Lobby.tsx` — line 179
 
----
+Change `"AI safety on"` to `"Safety first"` — this is accurate (safety pledge, blocking, reporting exist) without implying real-time AI moderation that doesn't exist yet.
 
-## Phase 5: Lobby + DropCard — Join Live Drop
-
-### `src/pages/Lobby.tsx`
-- Add `userTrust` from AuthContext
-- Add `onJoin(drop)` handler that:
-  1. Checks trust requirements (phone_verified, selfie_verified, safety_pledge_accepted)
-  2. Opens matchmaking overlay with drop_id
-  3. Calls `supabase.functions.invoke("find-match", { body: { drop_id, room_id } })`
-  4. If matched: navigate to `/call/${call_id}?channel=${channel}`
-  5. If queued: keep overlay open
-- Pass `onJoin`, `userTrust` to DropCard
-
-### `src/components/lobby/DropCard.tsx`
-- Add `onJoin` prop
-- When drop is live + user is RSVP'd + trust complete: show "Join live Drop" button
-- When trust incomplete: show disabled button + "Complete verification" link
-- Keep RSVP/Cancel for upcoming drops
-
-### `src/components/lobby/MatchmakingOverlay.tsx`
-- Add `drop_id` prop, remove simulated navigation
-- Poll matchmaking_queue every 2s for user's row in this drop
-- When `call_id` appears: fetch call, navigate to `/call/${callId}?channel=${channel}`
-- "Leave queue" deletes queue row
-- Show safety line: "Anonymous until mutual spark · Safety on"
+The `ai-moderate` function itself is auth-gated and behind a call participation check, so it's not a direct exploit vector. The stub logic stays as-is until real AI moderation is wired, but the UI must not claim active AI moderation.
 
 ---
 
-## Phase 6: Agora Hook + Real Video
+## Implementation Order
 
-### New: `src/hooks/useAgoraCall.ts`
-- Install `agora-rtc-sdk-ng` dependency
-- Create/join Agora client with token from edge function
-- Publish local audio+video tracks
-- Subscribe to remote user tracks
-- Expose: `localVideoRef`, `remoteVideoRef`, `isRemoteConnected`, `leave()`, `toggleMic()`, `toggleCamera()`
-- Cleanup on unmount
+1. DB migration: `stripe_processed_events` table + `stripe_customer_id` on profiles
+2. `create-checkout` rewrite (auth + allowlist)
+3. `customer-portal` open redirect fix
+4. `agora-token` real token generation
+5. `stripe-webhook` idempotency + customer ID mapping
+6. Lobby.tsx copy fix
 
-### `src/components/call/VideoArea.tsx`
-- Accept `localVideoRef`, `remoteVideoRef`, `isRemoteConnected` props
-- Render real video elements (remote full-screen, local PiP)
-- Show "Connecting…" placeholder when remote not yet connected
+## Required Secrets
 
----
-
-## Phase 7: LiveCall — Real Calls + Decisions
-
-### `src/pages/LiveCall.tsx`
-- Read `callId` from route params, `channel` from query string
-- Fetch call row from Supabase by callId
-- Determine role (caller vs callee)
-- Phase flow:
-  - `connecting`: invoke agora-token, join Agora
-  - `live`: 45s countdown from call.started_at or now()
-  - `deciding`: show Spark/Pass buttons
-  - On choice: UPDATE calls set caller_decision or callee_decision
-  - `waiting`: subscribe to call row via Realtime
-  - When both decisions present: check is_mutual_spark (set by existing DB trigger)
-  - `mutual-spark` or `no-spark` (never reveal partner's specific choice)
-- On mutual spark: query sparks table by call_id to find spark row, navigate to `/chat/${sparkId}`
-- Add Report button in top bar (creates reports row)
-
----
-
-## Phase 8: SparkHistory — Real Data
-
-### `src/pages/SparkHistory.tsx`
-- Replace `mockSparks` with Supabase query: `sparks` where user_a or user_b = auth.uid, joined with profiles for partner display_name
-- Show first name only from partner's profile
-- "Archived" filter uses `is_archived` flag
-- Clicking a spark navigates to `/chat/${sparkId}`
-
-### `src/components/sparks/SparkCard.tsx`
-- Update interface to match Supabase spark shape (id, call_id, user_a, user_b, created_at, is_archived, partner_name)
-- Remove dependency on mock Spark type
-
----
-
-## Phase 9: Chat — Real Messages
-
-### `src/pages/Chat.tsx`
-- Replace mockMessages/mockSparks with Supabase queries
-- Load spark by sparkId, determine partner user_id
-- Load messages by spark_id, ordered by created_at
-- Subscribe to realtime inserts on messages for this spark_id
-- Send: insert into messages (spark_id, sender_id, content)
-- Report: insert into reports (reporter_id, reported_user_id, reason)
-- Block: insert into user_blocks (blocker_id, blocked_id), archive spark, navigate to /sparks
-
-### `src/components/chat/MessageBubble.tsx`
-- Update interface: use `sender_id` string (compared to auth.uid) instead of "me"/"them"
-
----
-
-## Phase 10: Onboarding — Expand to 8 Steps
-
-### `src/pages/Onboarding.tsx`
-- TOTAL_STEPS = 8
-- Steps: 0-Welcome, 1-AgeGate, 2-SignIn, 3-PhoneVerify, 4-Selfie, 5-SafetyPledge (NEW), 6-Preferences (remove pledge from it), 7-DropReady (NEW)
-
-### New: `src/components/onboarding/SafetyPledgeStep.tsx`
-- Title: "One promise before you enter."
-- 3 safety bullets + required checkbox
-- On continue: write safety_pledge_accepted=true
-
-### New: `src/components/onboarding/DropReadyStep.tsx`
-- Title: "You're verified. Pick your first Drop."
-- Show 3 soonest upcoming drops from Supabase
-- RSVP on tap
-- "RSVP & go to lobby" / "Skip" buttons
-- On complete: mark onboarding_complete=true, navigate /lobby
-
-### `src/components/onboarding/PreferencesStep.tsx`
-- Remove safety pledge section (moved to SafetyPledgeStep)
-
-### `src/components/onboarding/SelfieStep.tsx`
-- Implement real camera capture via getUserMedia + canvas
-- Upload to `verifications` storage bucket
-- Set selfie_verified=true on successful upload
-
----
-
-## Phase 11: ProtectedRoute — Enforce Onboarding
-
-### `src/components/ProtectedRoute.tsx`
-- If logged in but `!onboardingComplete`: redirect to `/onboarding`
-- Exception: if current path is `/onboarding`, allow through
-
-### `src/contexts/AuthContext.tsx`
-- Add realtime subscription to `user_trust` for logged-in user to keep state fresh
-
----
-
-## Phase 12: Auth.tsx — Redirect Logic
-
-### `src/pages/Auth.tsx`
-- After login: check userTrust.onboarding_complete
-- If incomplete → `/onboarding`
-- If complete → `/lobby`
-
----
-
-## Required Secrets (user must add)
-- `AGORA_APP_ID` — Agora project App ID
-- `AGORA_APP_CERTIFICATE` — Agora App Certificate for token generation
-
-## New Dependency
-- `agora-rtc-sdk-ng` — Agora Web SDK for real-time video
-
-## Files Created
-- `src/hooks/useAgoraCall.ts`
-- `src/components/onboarding/SafetyPledgeStep.tsx`
-- `src/components/onboarding/DropReadyStep.tsx`
-
-## Files Modified
-- `supabase/functions/find-match/index.ts` (full rewrite)
-- `supabase/functions/agora-token/index.ts` (full rewrite)
-- `src/App.tsx` (route change)
-- `src/pages/Lobby.tsx` (join flow)
-- `src/components/lobby/DropCard.tsx` (join button)
-- `src/components/lobby/MatchmakingOverlay.tsx` (real polling)
-- `src/components/call/VideoArea.tsx` (real video)
-- `src/pages/LiveCall.tsx` (full rewrite)
-- `src/pages/SparkHistory.tsx` (Supabase data)
-- `src/components/sparks/SparkCard.tsx` (new interface)
-- `src/pages/Chat.tsx` (Supabase data + realtime)
-- `src/components/chat/MessageBubble.tsx` (new interface)
-- `src/pages/Onboarding.tsx` (8 steps)
-- `src/components/onboarding/PreferencesStep.tsx` (remove pledge)
-- `src/components/onboarding/SelfieStep.tsx` (real capture)
-- `src/components/ProtectedRoute.tsx` (enforce onboarding)
-- `src/contexts/AuthContext.tsx` (realtime trust)
-- `src/pages/Auth.tsx` (redirect logic)
+No new secrets needed — `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` all already configured.
 
