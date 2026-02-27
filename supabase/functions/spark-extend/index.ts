@@ -3,8 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validDays = [1, 3, 7];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,7 +17,7 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const supabase = createClient(
@@ -23,25 +26,37 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claims?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const userId = claims.claims.sub;
-    const { spark_id, days } = await req.json();
+    const body = await req.json();
+
+    // Validate inputs
+    const spark_id = typeof body.spark_id === "string" ? body.spark_id.trim() : "";
+    if (!uuidRegex.test(spark_id)) {
+      return new Response(JSON.stringify({ error: "Invalid spark_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const days = Number(body.days);
+    if (!validDays.includes(days)) {
+      return new Response(JSON.stringify({ error: "Days must be 1, 3, or 7" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Verify user is member of this spark
     const { data: spark, error: sparkError } = await supabase
       .from("sparks")
       .select("*")
       .eq("id", spark_id)
-      .or(`user_a.eq.${userId},user_b.eq.${userId}`)
       .single();
 
     if (sparkError || !spark) {
-      return new Response(JSON.stringify({ error: "Spark not found" }), { status: 404, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Spark not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (spark.user_a !== user.id && spark.user_b !== user.id) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Deduct tokens
@@ -49,7 +64,7 @@ serve(async (req) => {
     const { data: profile } = await supabase
       .from("profiles")
       .select("token_balance, subscription_tier")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .single();
 
     const isFreeWithPass = profile?.subscription_tier !== "free";
@@ -69,8 +84,8 @@ serve(async (req) => {
     await supabase.from("sparks").update({ expires_at: newExpiry.toISOString() }).eq("id", spark_id);
 
     if (actualCost > 0) {
-      await supabase.from("profiles").update({ token_balance: (profile?.token_balance || 0) - actualCost }).eq("user_id", userId);
-      await supabase.from("token_transactions").insert({ user_id: userId, amount: -actualCost, reason: `Spark extension: ${days} days` });
+      await supabase.from("profiles").update({ token_balance: (profile?.token_balance || 0) - actualCost }).eq("user_id", user.id);
+      await supabase.from("token_transactions").insert({ user_id: user.id, amount: -actualCost, reason: `Spark extension: ${days} days` });
     }
 
     return new Response(
@@ -79,7 +94,7 @@ serve(async (req) => {
     );
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "An error occurred" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
