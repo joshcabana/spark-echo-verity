@@ -153,6 +153,9 @@ const Lobby = () => {
           <h1 className="font-serif text-3xl md:text-4xl text-foreground mb-2">
             Upcoming Drops
           </h1>
+          <p className="text-sm text-muted-foreground/60 mb-1">
+            Verified 18+ Speed Dating Drops
+          </p>
           <p className="text-muted-foreground max-w-lg leading-relaxed text-sm">
             Scheduled sessions by room. RSVP to reserve your spot — you'll be matched when the Drop goes live.
           </p>

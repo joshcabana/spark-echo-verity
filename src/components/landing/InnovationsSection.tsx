@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MessageCircle, Mic, Map, Shield, BookOpen } from "lucide-react";
+import { MessageCircle, Mic, Shield, Film, Users } from "lucide-react";
 
 const innovations = [
   {
@@ -15,22 +15,22 @@ const innovations = [
       "After mutual spark, exchange optional 15-second voice notes before text chat unlocks. More human, deeper filtering.",
   },
   {
-    icon: Map,
-    title: "Intelligent Room Discovery",
-    description:
-      "Subtle, never pushy recommendations for the best room based on your past sparks and preferences.",
-  },
-  {
     icon: Shield,
     title: "Guardian Net",
     description:
       "One tap to share a safe-call signal with a trusted friend. They see only \"in Verity call until 9:12 pm\" — nothing else.",
   },
   {
-    icon: BookOpen,
-    title: "Private Reflection Journal",
+    icon: Film,
+    title: "Chemistry Replay Vault",
     description:
-      "Note privately why you sparked — or didn't — for your own growth. Never shared, always yours.",
+      "A private 8-second anonymised highlight reel from your call — for your eyes only. Unlocked with Verity Pass. Never shared, never public.",
+  },
+  {
+    icon: Users,
+    title: "Friendfluence Drops",
+    description:
+      "Invite a friend to join the same Drop. Shared courage, double the chance of connection. Because the best nights out start with a mate.",
   },
 ];
 

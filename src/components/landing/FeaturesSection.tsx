@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Video, ShieldCheck, Brain, Compass, Sparkles, Zap } from "lucide-react";
+import { Video, ShieldCheck, Brain, Compass, Calendar, Users } from "lucide-react";
 
 const features = [
   {
@@ -18,7 +18,7 @@ const features = [
     icon: Brain,
     title: "Real-Time AI Safety",
     description:
-      "Continuous moderation analyses 2-second clips in real time. Nothing is ever stored. Your safety is invisible, immediate, and absolute.",
+      "Continuous moderation analyses frames in real time. Nothing is stored unless you report — then only 30 seconds of ephemeral buffer, deleted within 30 days.",
   },
   {
     icon: Compass,
@@ -27,16 +27,16 @@ const features = [
       "No infinite scroll. No streaks. No dopamine traps. Verity is designed to be used, not to trap you into using it.",
   },
   {
-    icon: Sparkles,
-    title: "Curated Themed Rooms",
+    icon: Calendar,
+    title: "Scheduled Drops",
     description:
-      "Night Owls, Tech Professionals, Creatives & Makers, Over 35, Introvert Hours — enter the room that fits your energy.",
+      "RSVP to themed, time-limited sessions. Night Owls, Tech Professionals, Creatives & Makers, Over 35, Introvert Hours — join the Drop that fits your energy.",
   },
   {
-    icon: Zap,
-    title: "Spark Extension & Verity Pass",
+    icon: Users,
+    title: "Friendfluence Drops",
     description:
-      "Extend meaningful calls beyond 45 seconds. Verity Pass members enjoy priority access, unlimited entries, and premium rooms.",
+      "Bring a friend to a Drop for shared courage and double the chances. Real connections are braver together.",
   },
 ];
 

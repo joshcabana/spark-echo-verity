@@ -26,7 +26,7 @@ const HeroSection = () => {
           className="mb-8"
         >
           <span className="inline-block text-xs tracking-luxury uppercase text-primary/80 border border-primary/20 px-4 py-2 rounded-full">
-            The standard since 2025
+            Verified 18+ speed dating
           </span>
         </motion.div>
 
@@ -40,7 +40,7 @@ const HeroSection = () => {
           Real chemistry in{" "}
           <span className="text-gold-gradient italic">45 seconds.</span>
           <br />
-          Anonymity until mutual spark.
+          Mutual spark only.
           <br />
           <span className="text-muted-foreground">Dignity always.</span>
         </motion.h1>
@@ -52,8 +52,8 @@ const HeroSection = () => {
           transition={{ duration: 0.8, delay: 0.7 }}
           className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-12 font-light leading-relaxed"
         >
-          If there's no spark in 45 seconds of real eyes and voice,
-          there won't be one after 45 swipes.
+          Scheduled Drops. Anonymous video. 45 seconds of real eyes and voice.
+          If there's no spark, there's no trace — just dignity.
         </motion.p>
 
         {/* CTA */}
@@ -65,7 +65,7 @@ const HeroSection = () => {
         >
           <Link to="/onboarding">
             <Button variant="gold" size="xl" className="group">
-              Start meeting real people
+              Join your first Drop
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </Link>
@@ -83,7 +83,7 @@ const HeroSection = () => {
           transition={{ duration: 1, delay: 1.5 }}
           className="mt-16 text-xs text-muted-foreground/60 tracking-luxury uppercase"
         >
-          Invite-only · Verified members · Zero data stored
+          Verified 18+ · Anonymous until mutual spark · Nothing stored
         </motion.p>
       </div>
 

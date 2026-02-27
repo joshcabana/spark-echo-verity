@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
@@ -70,10 +70,10 @@ const MatchmakingOverlay = ({ open, roomName, onCancel }: MatchmakingOverlayProp
           className="text-center max-w-sm"
         >
           <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-3">
-            Finding your match…
+            Your Drop is live…
           </h2>
           <p className="text-muted-foreground leading-relaxed mb-2">
-            Connecting you to someone who's here for the same reason.
+            Matching you with someone who's here for the same reason.
           </p>
           <p className="text-xs text-muted-foreground/50 mb-1">
             Room: {roomName}
