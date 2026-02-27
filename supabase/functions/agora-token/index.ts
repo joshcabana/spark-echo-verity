@@ -58,16 +58,9 @@ serve(async (req) => {
     const uid = generateUid();
 
     if (!appId || !appCertificate) {
-      // Dev mode: return placeholder so the app can still function in testing
       return new Response(
-        JSON.stringify({
-          token: "",
-          appId: appId || "AGORA_APP_ID_NOT_SET",
-          uid,
-          channel,
-          message: "Agora credentials not configured. Add AGORA_APP_ID and AGORA_APP_CERTIFICATE secrets.",
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Video service temporarily unavailable" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
