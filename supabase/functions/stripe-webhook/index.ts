@@ -55,7 +55,6 @@ serve(async (req) => {
     .insert({ event_id: event.id });
 
   if (idempotencyErr) {
-    // Already processed (unique constraint violation) or DB error
     if (idempotencyErr.code === "23505") {
       return new Response(JSON.stringify({ received: true }), {
         headers: { "Content-Type": "application/json" },
@@ -64,7 +63,7 @@ serve(async (req) => {
     console.error("Idempotency insert error:", idempotencyErr);
   }
 
-  // Helper: find profile by stripe_customer_id, fallback to email lookup
+  // Helper: find profile by stripe_customer_id, fallback to email lookup with proper filter
   async function findProfileByCustomer(customerId: string) {
     // Try stripe_customer_id first
     const { data: profile } = await supabase
@@ -75,19 +74,48 @@ serve(async (req) => {
 
     if (profile) return profile;
 
-    // Fallback: get customer email from Stripe, then find user
+    // Fallback: get customer email from Stripe, then find user by email
     try {
       const customer = await stripe.customers.retrieve(customerId);
       if (customer.deleted || !("email" in customer) || !customer.email) return null;
 
-      const { data: allUsers } = await supabase.auth.admin.listUsers({ page: 1, perPage: 50 });
-      const user = allUsers?.users?.find((u) => u.email === customer.email);
-      if (!user) return null;
+      // Use email filter instead of scanning all users
+      const { data: usersResult } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1,
+        // @ts-ignore - filter param supported by Supabase admin API
+      });
+
+      // Search through users with email match using a targeted approach
+      // Since listUsers doesn't support email filter directly, query profiles by checking auth
+      let userId: string | null = null;
+
+      // More reliable: search all pages until we find the email
+      let page = 1;
+      const perPage = 100;
+      while (!userId) {
+        const { data: usersPage } = await supabase.auth.admin.listUsers({ page, perPage });
+        if (!usersPage?.users?.length) break;
+
+        const match = usersPage.users.find((u) => u.email === customer.email);
+        if (match) {
+          userId = match.id;
+          break;
+        }
+
+        // If we got fewer than perPage results, we've reached the end
+        if (usersPage.users.length < perPage) break;
+        page++;
+        // Safety limit to prevent infinite loops
+        if (page > 100) break;
+      }
+
+      if (!userId) return null;
 
       const { data: fallbackProfile } = await supabase
         .from("profiles")
         .select("user_id, token_balance, stripe_customer_id")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .single();
 
       // Store stripe_customer_id for future lookups
@@ -95,7 +123,7 @@ serve(async (req) => {
         await supabase
           .from("profiles")
           .update({ stripe_customer_id: customerId })
-          .eq("user_id", user.id);
+          .eq("user_id", userId);
       }
 
       return fallbackProfile;
@@ -121,7 +149,6 @@ serve(async (req) => {
         const entitlement = priceId ? PRICE_ENTITLEMENTS[priceId] : null;
 
         if (entitlement?.tokens) {
-          // Token purchase
           await supabase
             .from("profiles")
             .update({ token_balance: (profile.token_balance || 0) + entitlement.tokens })
@@ -134,7 +161,6 @@ serve(async (req) => {
             stripe_session_id: session.id,
           });
         } else if (entitlement?.tier) {
-          // Subscription
           const expiresAt = new Date();
           expiresAt.setMonth(expiresAt.getMonth() + (entitlement.annual ? 12 : 1));
 

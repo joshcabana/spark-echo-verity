@@ -234,7 +234,7 @@ const Lobby = () => {
 
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.8 }}
           className="mt-10 mb-6 text-center text-[11px] text-muted-foreground/40 leading-relaxed">
-          All calls are anonymous · AI-moderated in real time · Nothing is stored
+          All calls are anonymous · Safety first · Nothing is stored
         </motion.p>
       </main>
 
