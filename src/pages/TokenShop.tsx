@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Coins, Crown, Check, Sparkles, Zap, Clock, Star, ArrowRight } from "lucide-react";
+import { Coins, Crown, Check, Sparkles, Zap, Clock, Star, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
 import SparkExtendModal from "@/components/tokens/SparkExtendModal";
 import PurchaseSuccess from "@/components/tokens/PurchaseSuccess";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 
 const tokenPacks = [
-  { id: "starter", name: "Starter", tokens: 10, price: "$4.90", entries: 10, badge: null },
-  { id: "popular", name: "Popular", tokens: 15, price: "$6.90", entries: 15, badge: "Most popular" },
-  { id: "value", name: "Value", tokens: 30, price: "$11.90", entries: 30, badge: "Best value" },
+  { id: "starter", name: "Starter", tokens: 10, price: "$4.90", entries: 10, badge: null, price_id: "price_starter_10" },
+  { id: "popular", name: "Popular", tokens: 15, price: "$6.90", entries: 15, badge: "Most popular", price_id: "price_popular_15" },
+  { id: "value", name: "Value", tokens: 30, price: "$11.90", entries: 30, badge: "Best value", price_id: "price_value_30" },
 ] as const;
 
 const passPerks = [
@@ -21,18 +25,55 @@ const passPerks = [
 ];
 
 const TokenShop = () => {
-  const [tokenBalance] = useState(12);
-  const [isPassHolder] = useState(false);
+  const { profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tokenBalance = profile?.token_balance ?? 0;
+  const subscriptionTier = profile?.subscription_tier ?? "free";
+  const isPassHolder = subscriptionTier === "pass_monthly" || subscriptionTier === "pass_annual";
+
   const [extendOpen, setExtendOpen] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("annual");
+  const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
 
-  const handleBuyTokens = (packName: string) => {
-    setPurchaseSuccess(`${packName} pack`);
+  // Handle ?success=true redirect from Stripe
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      setPurchaseSuccess("your purchase");
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const handleCheckout = async (priceId: string, label: string) => {
+    setLoadingPriceId(priceId);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { price_id: priceId },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
+    } catch {
+      toast.error("Unable to start checkout. Please try again.");
+    } finally {
+      setLoadingPriceId(null);
+    }
   };
 
-  const handleSubscribe = () => {
-    setPurchaseSuccess("Verity Pass");
+  const handleManageSubscription = async () => {
+    setLoadingPriceId("manage");
+    try {
+      const { data, error } = await supabase.functions.invoke("customer-portal");
+      if (error) throw error;
+      if (data?.url) window.location.href = data.url;
+    } catch {
+      toast.error("Unable to open subscription portal");
+    } finally {
+      setLoadingPriceId(null);
+    }
   };
 
   return (
@@ -63,7 +104,7 @@ const TokenShop = () => {
       </header>
 
       <main className="container max-w-2xl mx-auto px-5 pt-6">
-        {/* ═══ SPARK EXTENSION ═══ */}
+        {/* Spark Extension */}
         <motion.button
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -81,7 +122,7 @@ const TokenShop = () => {
           <ArrowRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary transition-colors" />
         </motion.button>
 
-        {/* ═══ TOKEN PACKS ═══ */}
+        {/* Token Packs */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -89,74 +130,70 @@ const TokenShop = () => {
           className="mb-10"
         >
           <h2 className="font-serif text-lg text-foreground mb-1">Token Packs</h2>
-          <p className="text-xs text-muted-foreground/60 mb-5">
-            Support more meaningful connections
-          </p>
+          <p className="text-xs text-muted-foreground/60 mb-5">Support more meaningful connections</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {tokenPacks.map((pack, i) => (
-              <motion.div
-                key={pack.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + i * 0.08 }}
-                className={`relative rounded-lg border p-5 transition-all duration-400 ${
-                  pack.id === "popular"
-                    ? "border-primary/30 bg-primary/[0.04] shadow-[0_0_40px_hsl(43_72%_55%/0.05)]"
-                    : "border-border bg-card hover:border-primary/15"
-                }`}
-              >
-                {pack.badge && (
-                  <div className="absolute -top-2.5 left-4">
-                    <span className="text-[9px] tracking-luxury uppercase text-primary bg-background border border-primary/25 px-2.5 py-0.5 rounded-full">
-                      {pack.badge}
-                    </span>
+            {tokenPacks.map((pack, i) => {
+              const isLoading = loadingPriceId === pack.price_id;
+              return (
+                <motion.div
+                  key={pack.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 + i * 0.08 }}
+                  className={`relative rounded-lg border p-5 transition-all duration-400 ${
+                    pack.id === "popular"
+                      ? "border-primary/30 bg-primary/[0.04] shadow-[0_0_40px_hsl(43_72%_55%/0.05)]"
+                      : "border-border bg-card hover:border-primary/15"
+                  }`}
+                >
+                  {pack.badge && (
+                    <div className="absolute -top-2.5 left-4">
+                      <span className="text-[9px] tracking-luxury uppercase text-primary bg-background border border-primary/25 px-2.5 py-0.5 rounded-full">
+                        {pack.badge}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <p className="text-xs text-muted-foreground/60 uppercase tracking-luxury mb-1">{pack.name}</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-serif text-2xl text-foreground">{pack.tokens}</span>
+                      <span className="text-xs text-muted-foreground">tokens</span>
+                    </div>
                   </div>
-                )}
 
-                <div className="mb-4">
-                  <p className="text-xs text-muted-foreground/60 uppercase tracking-luxury mb-1">
-                    {pack.name}
-                  </p>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-serif text-2xl text-foreground">{pack.tokens}</span>
-                    <span className="text-xs text-muted-foreground">tokens</span>
+                  <p className="text-xs text-muted-foreground/50 mb-4">Good for {pack.entries} lobby entries</p>
+
+                  <div className="w-full h-[3px] rounded-full bg-secondary/60 overflow-hidden mb-5">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(pack.tokens / 30) * 100}%` }}
+                      transition={{ duration: 1, delay: 0.4 + i * 0.1 }}
+                      className="h-full rounded-full bg-primary/40"
+                    />
                   </div>
-                </div>
 
-                <p className="text-xs text-muted-foreground/50 mb-4">
-                  Good for {pack.entries} lobby entries
-                </p>
-
-                {/* Capacity visualisation */}
-                <div className="w-full h-[3px] rounded-full bg-secondary/60 overflow-hidden mb-5">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(pack.tokens / 30) * 100}%` }}
-                    transition={{ duration: 1, delay: 0.4 + i * 0.1 }}
-                    className="h-full rounded-full bg-primary/40"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm text-foreground">{pack.price}</span>
-                  <Button
-                    variant={pack.id === "popular" ? "gold" : "gold-outline"}
-                    size="sm"
-                    onClick={() => handleBuyTokens(pack.name)}
-                  >
-                    Buy
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm text-foreground">{pack.price}</span>
+                    <Button
+                      variant={pack.id === "popular" ? "gold" : "gold-outline"}
+                      size="sm"
+                      disabled={!!loadingPriceId}
+                      onClick={() => handleCheckout(pack.price_id, pack.name)}
+                    >
+                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buy"}
+                    </Button>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
 
-        {/* ═══ DIVIDER ═══ */}
         <div className="h-px bg-border mb-10" />
 
-        {/* ═══ VERITY PASS ═══ */}
+        {/* Verity Pass */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -164,7 +201,6 @@ const TokenShop = () => {
           className="mb-10"
         >
           <div className="rounded-xl border border-primary/25 bg-card p-6 shadow-[0_0_60px_hsl(43_72%_55%/0.04)]">
-            {/* Header */}
             <div className="flex items-center gap-2.5 mb-5">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Crown className="w-5 h-5 text-primary" />
@@ -175,7 +211,6 @@ const TokenShop = () => {
               </div>
             </div>
 
-            {/* Benefits */}
             <div className="space-y-3 mb-6">
               {passPerks.map((perk) => (
                 <div key={perk.text} className="flex items-start gap-3">
@@ -187,30 +222,31 @@ const TokenShop = () => {
               ))}
             </div>
 
-            {/* Billing toggle */}
-            <div className="flex items-center gap-2 mb-5 bg-secondary/40 rounded-lg p-1">
-              <button
-                onClick={() => setBillingCycle("monthly")}
-                className={`flex-1 py-2 rounded-md text-xs transition-all duration-300 ${
-                  billingCycle === "monthly"
-                    ? "bg-card text-foreground shadow-sm border border-border"
-                    : "text-muted-foreground"
-                }`}
-              >
-                Monthly · $12.90
-              </button>
-              <button
-                onClick={() => setBillingCycle("annual")}
-                className={`flex-1 py-2 rounded-md text-xs transition-all duration-300 relative ${
-                  billingCycle === "annual"
-                    ? "bg-card text-foreground shadow-sm border border-border"
-                    : "text-muted-foreground"
-                }`}
-              >
-                Annual · $99
-                <span className="ml-1 text-[9px] text-primary">Save 36%</span>
-              </button>
-            </div>
+            {!isPassHolder && (
+              <div className="flex items-center gap-2 mb-5 bg-secondary/40 rounded-lg p-1">
+                <button
+                  onClick={() => setBillingCycle("monthly")}
+                  className={`flex-1 py-2 rounded-md text-xs transition-all duration-300 ${
+                    billingCycle === "monthly"
+                      ? "bg-card text-foreground shadow-sm border border-border"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  Monthly · $12.90
+                </button>
+                <button
+                  onClick={() => setBillingCycle("annual")}
+                  className={`flex-1 py-2 rounded-md text-xs transition-all duration-300 relative ${
+                    billingCycle === "annual"
+                      ? "bg-card text-foreground shadow-sm border border-border"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  Annual · $99
+                  <span className="ml-1 text-[9px] text-primary">Save 36%</span>
+                </button>
+              </div>
+            )}
 
             {isPassHolder ? (
               <div className="text-center">
@@ -218,22 +254,39 @@ const TokenShop = () => {
                   <Check className="w-4 h-4 text-primary" />
                   <span className="text-sm text-primary font-medium">Active member</span>
                 </div>
-                <Button variant="gold-outline" size="lg" className="w-full">
+                <Button
+                  variant="gold-outline"
+                  size="lg"
+                  className="w-full"
+                  disabled={loadingPriceId === "manage"}
+                  onClick={handleManageSubscription}
+                >
+                  {loadingPriceId === "manage" ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Manage subscription
                 </Button>
-                <p className="text-[11px] text-muted-foreground/40 mt-3">
-                  Renews 28 Mar 2026 · Cancel anytime
-                </p>
               </div>
             ) : (
-              <Button variant="gold" size="lg" className="w-full" onClick={handleSubscribe}>
+              <Button
+                variant="gold"
+                size="lg"
+                className="w-full"
+                disabled={!!loadingPriceId}
+                onClick={() =>
+                  handleCheckout(
+                    billingCycle === "monthly" ? "price_pass_monthly" : "price_pass_annual",
+                    "Verity Pass"
+                  )
+                }
+              >
+                {loadingPriceId?.startsWith("price_pass") ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
                 Subscribe to Verity Pass
               </Button>
             )}
           </div>
         </motion.div>
 
-        {/* Footer */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -248,14 +301,10 @@ const TokenShop = () => {
 
       <BottomNav activeTab="tokens" />
 
-      {/* Modals */}
       <SparkExtendModal open={extendOpen} onClose={() => setExtendOpen(false)} />
       <AnimatePresence>
         {purchaseSuccess && (
-          <PurchaseSuccess
-            item={purchaseSuccess}
-            onDismiss={() => setPurchaseSuccess(null)}
-          />
+          <PurchaseSuccess item={purchaseSuccess} onDismiss={() => setPurchaseSuccess(null)} />
         )}
       </AnimatePresence>
     </div>

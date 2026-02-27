@@ -19,6 +19,7 @@ const TokenShop = lazy(() => import("./pages/TokenShop"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Transparency = lazy(() => import("./pages/Transparency"));
 const Appeal = lazy(() => import("./pages/Appeal"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="/tokens" element={<ProtectedRoute><TokenShop /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
               <Route path="/transparency" element={<Transparency />} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/appeal" element={<ProtectedRoute><Appeal /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

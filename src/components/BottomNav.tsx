@@ -7,7 +7,7 @@ const tabs = [
   { id: "go-live", label: "Go Live", icon: Video, path: "/lobby" },
   { id: "sparks", label: "Sparks", icon: Sparkles, path: "/sparks" },
   { id: "tokens", label: "Tokens", icon: Coins, path: "/tokens" },
-  { id: "profile", label: "Profile", icon: User, path: "/lobby" },
+  { id: "profile", label: "Profile", icon: User, path: "/profile" },
 ] as const;
 
 interface BottomNavProps {
