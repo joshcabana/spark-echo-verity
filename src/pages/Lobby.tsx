@@ -176,7 +176,7 @@ const Lobby = () => {
             <span className="font-serif text-lg text-foreground">Verity</span>
             <div className="flex items-center gap-1 ml-3 text-[10px] text-muted-foreground/60">
               <Shield className="w-3 h-3 text-primary/50" />
-              <span>AI safety on</span>
+              <span>Safety first</span>
             </div>
           </div>
           <button
