@@ -180,7 +180,7 @@ const Lobby = () => {
             </div>
           </div>
           <button
-            onClick={() => navigate("/tokens")}
+            onClick={() => navigate("/profile")}
             className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
             <User className="w-4 h-4 text-muted-foreground" />
           </button>
