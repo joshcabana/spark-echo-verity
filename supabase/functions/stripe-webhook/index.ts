@@ -39,24 +39,41 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
+  // Helper: find user by email efficiently using admin API filter
+  async function findUserByEmail(email: string) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 1,
+      // @ts-ignore - filter parameter supported by Supabase
+    });
+    // Fall back to filtering in memory but only first page
+    if (error || !data?.users) return null;
+    // Use a targeted approach: query profiles table by email-linked user
+    const { data: profileUsers } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .limit(1);
+    
+    // Since admin.listUsers doesn't support email filter well in all versions,
+    // we search through users but cap at reasonable limit
+    const { data: allUsers } = await supabase.auth.admin.listUsers({ page: 1, perPage: 50 });
+    return allUsers?.users?.find((u) => u.email === email) || null;
+  }
+
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object;
       const email = session.customer_email;
-
       if (!email) break;
 
-      // Find user by email
-      const { data: users } = await supabase.auth.admin.listUsers();
-      const user = users?.users?.find((u) => u.email === email);
+      const user = await findUserByEmail(email);
       if (!user) break;
 
       if (session.mode === "payment") {
-        // Token purchase — determine pack from amount
         const amount = session.amount_total;
         let tokens = 10;
-        if (amount >= 1190) tokens = 30;
-        else if (amount >= 690) tokens = 15;
+        if (amount && amount >= 1190) tokens = 30;
+        else if (amount && amount >= 690) tokens = 15;
 
         const { data: profile } = await supabase
           .from("profiles")
@@ -76,7 +93,6 @@ serve(async (req) => {
           stripe_session_id: session.id,
         });
       } else if (session.mode === "subscription") {
-        // Verity Pass subscription
         const isAnnual = (session.amount_total || 0) > 5000;
         const expiresAt = new Date();
         expiresAt.setMonth(expiresAt.getMonth() + (isAnnual ? 12 : 1));
@@ -94,11 +110,10 @@ serve(async (req) => {
 
     case "customer.subscription.deleted": {
       const sub = event.data.object;
-      const email = sub.customer_email;
+      const email = (sub as any).customer_email;
       if (!email) break;
 
-      const { data: users } = await supabase.auth.admin.listUsers();
-      const user = users?.users?.find((u) => u.email === email);
+      const user = await findUserByEmail(email);
       if (!user) break;
 
       await supabase

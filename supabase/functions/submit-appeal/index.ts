@@ -3,8 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const urlRegex = /^https?:\/\/.{1,2000}$/;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,7 +17,7 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const supabase = createClient(
@@ -23,22 +26,36 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claims?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const userId = claims.claims.sub;
-    const { explanation, voice_note_url, flag_id } = await req.json();
+    const body = await req.json();
+
+    // Validate inputs
+    const explanation = typeof body.explanation === "string" ? body.explanation.trim() : "";
+    if (explanation.length < 10 || explanation.length > 2000) {
+      return new Response(JSON.stringify({ error: "Explanation must be 10-2000 characters" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const voice_note_url = body.voice_note_url ? String(body.voice_note_url).trim() : null;
+    if (voice_note_url && !urlRegex.test(voice_note_url)) {
+      return new Response(JSON.stringify({ error: "Invalid voice note URL" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const flag_id = body.flag_id ? String(body.flag_id).trim() : null;
+    if (flag_id && !uuidRegex.test(flag_id)) {
+      return new Response(JSON.stringify({ error: "Invalid flag_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     const { data, error } = await supabase
       .from("appeals")
       .insert({
-        user_id: userId,
+        user_id: user.id,
         explanation,
-        voice_note_url: voice_note_url || null,
-        flag_id: flag_id || null,
+        voice_note_url,
+        flag_id,
       })
       .select()
       .single();
@@ -51,7 +68,7 @@ serve(async (req) => {
     );
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "An error occurred" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
