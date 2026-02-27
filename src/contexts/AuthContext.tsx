@@ -2,12 +2,26 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+interface UserTrust {
+  id: string;
+  user_id: string;
+  dob: string | null;
+  phone_verified: boolean;
+  selfie_verified: boolean;
+  safety_pledge_accepted: boolean;
+  onboarding_step: number;
+  onboarding_complete: boolean;
+  preferences: Record<string, any>;
+}
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: any | null;
+  userTrust: UserTrust | null;
   isLoading: boolean;
   isAdmin: boolean;
+  onboardingComplete: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -15,8 +29,10 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   profile: null,
+  userTrust: null,
   isLoading: true,
   isAdmin: false,
+  onboardingComplete: false,
   signOut: async () => {},
 });
 
@@ -26,6 +42,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
+  const [userTrust, setUserTrust] = useState<UserTrust | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -36,7 +53,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Fetch profile
           const { data: profileData } = await supabase
             .from("profiles")
             .select("*")
@@ -44,7 +60,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             .single();
           setProfile(profileData);
 
-          // Check admin role
+          const { data: trustData } = await supabase
+            .from("user_trust")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+          setUserTrust(trustData as UserTrust | null);
+
           const { data: roleData } = await supabase
             .from("user_roles")
             .select("role")
@@ -54,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsAdmin(!!roleData);
         } else {
           setProfile(null);
+          setUserTrust(null);
           setIsAdmin(false);
         }
         setIsLoading(false);
@@ -72,11 +95,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setUser(null);
     setProfile(null);
+    setUserTrust(null);
     setIsAdmin(false);
   };
 
+  const onboardingComplete = userTrust?.onboarding_complete ?? false;
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, isLoading, isAdmin, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, userTrust, isLoading, isAdmin, onboardingComplete, signOut }}>
       {children}
     </AuthContext.Provider>
   );
