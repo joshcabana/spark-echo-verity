@@ -4,6 +4,8 @@
 
 **URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
 
+**Project overview**: See [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) for objectives, strategy, timelines, and current status.
+
 ## How can I edit this code?
 
 There are several ways of editing your application.
