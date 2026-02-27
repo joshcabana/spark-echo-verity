@@ -1,9 +1,17 @@
 import { motion } from "framer-motion";
 import { CheckCheck } from "lucide-react";
-import type { ChatMessage } from "@/data/sparks";
+
+interface MessageData {
+  id: string;
+  sender_id: string;
+  content: string | null;
+  created_at: string;
+  is_read: boolean | null;
+}
 
 interface MessageBubbleProps {
-  message: ChatMessage;
+  message: MessageData;
+  currentUserId: string;
   index: number;
 }
 
@@ -14,8 +22,8 @@ function formatTime(dateStr: string): string {
   });
 }
 
-const MessageBubble = ({ message, index }: MessageBubbleProps) => {
-  const isMe = message.senderId === "me";
+const MessageBubble = ({ message, currentUserId, index }: MessageBubbleProps) => {
+  const isMe = message.sender_id === currentUserId;
 
   return (
     <motion.div
@@ -31,25 +39,13 @@ const MessageBubble = ({ message, index }: MessageBubbleProps) => {
             : "bg-secondary text-foreground rounded-bl-md"
         }`}
       >
-        <p className="text-sm leading-relaxed">{message.text}</p>
-        <div
-          className={`flex items-center gap-1 mt-1 ${
-            isMe ? "justify-end" : "justify-start"
-          }`}
-        >
-          <span
-            className={`text-[10px] ${
-              isMe ? "text-primary-foreground/50" : "text-muted-foreground/50"
-            }`}
-          >
-            {formatTime(message.timestamp)}
+        <p className="text-sm leading-relaxed">{message.content}</p>
+        <div className={`flex items-center gap-1 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
+          <span className={`text-[10px] ${isMe ? "text-primary-foreground/50" : "text-muted-foreground/50"}`}>
+            {formatTime(message.created_at)}
           </span>
           {isMe && (
-            <CheckCheck
-              className={`w-3 h-3 ${
-                message.read ? "text-primary-foreground/70" : "text-primary-foreground/30"
-              }`}
-            />
+            <CheckCheck className={`w-3 h-3 ${message.is_read ? "text-primary-foreground/70" : "text-primary-foreground/30"}`} />
           )}
         </div>
       </div>

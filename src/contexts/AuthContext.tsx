@@ -46,6 +46,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const fetchUserData = async (userId: string) => {
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+    setProfile(profileData);
+
+    const { data: trustData } = await supabase
+      .from("user_trust")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+    setUserTrust(trustData as UserTrust | null);
+
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    setIsAdmin(!!roleData);
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
@@ -53,27 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("user_id", session.user.id)
-            .single();
-          setProfile(profileData);
-
-          const { data: trustData } = await supabase
-            .from("user_trust")
-            .select("*")
-            .eq("user_id", session.user.id)
-            .maybeSingle();
-          setUserTrust(trustData as UserTrust | null);
-
-          const { data: roleData } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", session.user.id)
-            .eq("role", "admin")
-            .maybeSingle();
-          setIsAdmin(!!roleData);
+          await fetchUserData(session.user.id);
         } else {
           setProfile(null);
           setUserTrust(null);
@@ -89,6 +93,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Realtime subscription for user_trust changes
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`trust-${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "user_trust",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        if (payload.new) {
+          setUserTrust(payload.new as UserTrust);
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

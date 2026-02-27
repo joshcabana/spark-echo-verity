@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Shield, User } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,12 +10,25 @@ import DropsFilter, { type FilterOption } from "@/components/lobby/DropsFilter";
 import MatchmakingOverlay from "@/components/lobby/MatchmakingOverlay";
 import BottomNav from "@/components/BottomNav";
 import { isToday, isThisWeek } from "date-fns";
+import { toast } from "sonner";
 
 const Lobby = () => {
-  const { user } = useAuth();
+  const { user, userTrust } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterOption>("all");
-  const [matchmaking, setMatchmaking] = useState({ active: false, roomName: "" });
+  const [matchmaking, setMatchmaking] = useState<{
+    active: boolean;
+    roomName: string;
+    dropTitle: string;
+    dropId: string;
+  }>({ active: false, roomName: "", dropTitle: "", dropId: "" });
+
+  const trustComplete = !!(
+    userTrust?.phone_verified &&
+    userTrust?.selfie_verified &&
+    userTrust?.safety_pledge_accepted
+  );
 
   // Fetch drops
   const { data: drops = [] } = useQuery({
@@ -96,7 +109,41 @@ const Lobby = () => {
     },
   });
 
-  // Realtime for new drops/RSVPs
+  // Join live drop
+  const handleJoin = useCallback(async (drop: any) => {
+    if (!user) return;
+
+    if (!trustComplete) {
+      toast.error("Complete verification to join live Drops.");
+      return;
+    }
+
+    setMatchmaking({
+      active: true,
+      roomName: drop.rooms?.name || "Drop",
+      dropTitle: drop.title,
+      dropId: drop.id,
+    });
+
+    try {
+      const { data, error } = await supabase.functions.invoke("find-match", {
+        body: { drop_id: drop.id, room_id: drop.room_id },
+      });
+
+      if (error) throw error;
+
+      if (data.status === "matched") {
+        setMatchmaking((m) => ({ ...m, active: false }));
+        navigate(`/call/${data.call_id}?channel=${encodeURIComponent(data.agora_channel)}`);
+      }
+      // If queued, overlay stays open and polls
+    } catch (err: any) {
+      toast.error(err.message || "Failed to join drop");
+      setMatchmaking((m) => ({ ...m, active: false }));
+    }
+  }, [user, trustComplete, navigate]);
+
+  // Realtime for drops/RSVPs
   useEffect(() => {
     const channel = supabase
       .channel("drops-realtime")
@@ -119,7 +166,6 @@ const Lobby = () => {
     return true;
   });
 
-  // Next RSVP'd drop
   const nextRsvp = drops.find((d: any) => rsvps.includes(d.id));
 
   return (
@@ -133,54 +179,35 @@ const Lobby = () => {
               <span>AI safety on</span>
             </div>
           </div>
-          <Link
-            to="/profile"
-            className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors"
-          >
+          <Link to="/profile"
+            className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
             <User className="w-4 h-4 text-muted-foreground" />
           </Link>
         </div>
       </header>
 
       <main className="container max-w-2xl mx-auto px-5 pt-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="mb-6"
-        >
-          <h1 className="font-serif text-3xl md:text-4xl text-foreground mb-2">
-            Upcoming Drops
-          </h1>
-          <p className="text-sm text-muted-foreground/60 mb-1">
-            Verified 18+ Speed Dating Drops
-          </p>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
+          className="mb-6">
+          <h1 className="font-serif text-3xl md:text-4xl text-foreground mb-2">Upcoming Drops</h1>
+          <p className="text-sm text-muted-foreground/60 mb-1">Verified 18+ Speed Dating Drops</p>
           <p className="text-muted-foreground max-w-lg leading-relaxed text-sm">
             Scheduled sessions by room. RSVP to reserve your spot — you'll be matched when the Drop goes live.
           </p>
         </motion.div>
 
-        {/* Filters */}
         <div className="mb-6">
           <DropsFilter active={filter} onChange={setFilter} />
         </div>
 
-        {/* Next RSVP hero card */}
         {nextRsvp && filter !== "my-rsvps" && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 rounded-2xl border border-primary/20 bg-primary/5"
-          >
-            <span className="text-[10px] uppercase tracking-luxury text-primary block mb-1">
-              Your next Drop
-            </span>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 rounded-2xl border border-primary/20 bg-primary/5">
+            <span className="text-[10px] uppercase tracking-luxury text-primary block mb-1">Your next Drop</span>
             <p className="font-serif text-foreground">{(nextRsvp as any).title}</p>
           </motion.div>
         )}
 
-        {/* Drop cards */}
         <div className="space-y-4">
           {filtered.map((drop: any, i: number) => (
             <DropCard
@@ -190,27 +217,22 @@ const Lobby = () => {
               isRsvpd={rsvps.includes(drop.id)}
               onRsvp={(id) => rsvpMutation.mutate(id)}
               onCancel={(id) => cancelMutation.mutate(id)}
+              onJoin={handleJoin}
+              trustComplete={trustComplete}
               index={i}
             />
           ))}
         </div>
 
         {filtered.length === 0 && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center text-muted-foreground py-16 text-sm"
-          >
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="text-center text-muted-foreground py-16 text-sm">
             {filter === "my-rsvps" ? "You haven't RSVP'd to any Drops yet." : "No Drops scheduled — check back soon."}
           </motion.p>
         )}
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 0.8 }}
-          className="mt-10 mb-6 text-center text-[11px] text-muted-foreground/40 leading-relaxed"
-        >
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.8 }}
+          className="mt-10 mb-6 text-center text-[11px] text-muted-foreground/40 leading-relaxed">
           All calls are anonymous · AI-moderated in real time · Nothing is stored
         </motion.p>
       </main>
@@ -220,7 +242,9 @@ const Lobby = () => {
       <MatchmakingOverlay
         open={matchmaking.active}
         roomName={matchmaking.roomName}
-        onCancel={() => setMatchmaking({ active: false, roomName: "" })}
+        dropTitle={matchmaking.dropTitle}
+        dropId={matchmaking.dropId}
+        onCancel={() => setMatchmaking({ active: false, roomName: "", dropTitle: "", dropId: "" })}
       />
     </div>
   );

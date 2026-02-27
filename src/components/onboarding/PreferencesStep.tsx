@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface PreferencesStepProps {
@@ -15,7 +14,6 @@ interface PreferencesStepProps {
 const AU_STATES = ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"];
 
 const PreferencesStep = ({ onComplete }: PreferencesStepProps) => {
-  const [pledge, setPledge] = useState(false);
   const [interestedIn, setInterestedIn] = useState<string | null>(null);
   const [ageRange, setAgeRange] = useState([18, 35]);
   const [state, setState] = useState("");
@@ -37,7 +35,7 @@ const PreferencesStep = ({ onComplete }: PreferencesStepProps) => {
     );
   };
 
-  const canSubmit = pledge && interestedIn && state;
+  const canSubmit = interestedIn && state;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -61,22 +59,6 @@ const PreferencesStep = ({ onComplete }: PreferencesStepProps) => {
         Almost there
       </h2>
 
-      {/* Safety pledge */}
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-card border border-border mb-6">
-        <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-        <div className="flex-1">
-          <p className="text-sm text-foreground font-medium mb-1">Safety Pledge</p>
-          <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-            I commit to treating every person on Verity with dignity and respect.
-            I understand harmful behaviour results in permanent removal.
-          </p>
-          <div className="flex items-center gap-2">
-            <Switch checked={pledge} onCheckedChange={setPledge} />
-            <span className="text-xs text-muted-foreground">I agree</span>
-          </div>
-        </div>
-      </div>
-
       {/* Interested in */}
       <label className="text-xs text-muted-foreground uppercase tracking-luxury mb-2">Interested in</label>
       <div className="flex gap-2 mb-6">
@@ -99,14 +81,7 @@ const PreferencesStep = ({ onComplete }: PreferencesStepProps) => {
       <label className="text-xs text-muted-foreground uppercase tracking-luxury mb-2">
         Age range: {ageRange[0]}–{ageRange[1]}
       </label>
-      <Slider
-        min={18}
-        max={65}
-        step={1}
-        value={ageRange}
-        onValueChange={setAgeRange}
-        className="mb-6"
-      />
+      <Slider min={18} max={65} step={1} value={ageRange} onValueChange={setAgeRange} className="mb-6" />
 
       {/* State */}
       <label className="text-xs text-muted-foreground uppercase tracking-luxury mb-2">State</label>
@@ -150,7 +125,7 @@ const PreferencesStep = ({ onComplete }: PreferencesStepProps) => {
         className="group w-full"
       >
         <Sparkles className="mr-2 h-4 w-4" />
-        Find your first Drop
+        Continue
       </Button>
     </motion.div>
   );

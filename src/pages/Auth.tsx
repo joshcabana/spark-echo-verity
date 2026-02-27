@@ -2,9 +2,10 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, ArrowRight, Mail, Lock, Check, UserPlus, LogIn } from "lucide-react";
+import { ArrowLeft, Mail, Lock, UserPlus, LogIn } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
@@ -15,6 +16,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { userTrust } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +39,23 @@ const Auth = () => {
           description: "We've sent a verification link to your email.",
         });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate("/lobby");
+
+        // Check onboarding status
+        if (data.user) {
+          const { data: trust } = await supabase
+            .from("user_trust")
+            .select("onboarding_complete")
+            .eq("user_id", data.user.id)
+            .maybeSingle();
+
+          if (trust?.onboarding_complete) {
+            navigate("/lobby");
+          } else {
+            navigate("/onboarding");
+          }
+        }
       }
     } catch (err: any) {
       toast({
@@ -62,12 +78,8 @@ const Auth = () => {
       </div>
 
       <div className="flex-1 flex items-center justify-center px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="w-full max-w-md"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
+          className="w-full max-w-md">
           <div className="text-center mb-10">
             <h1 className="font-serif text-3xl text-foreground mb-2">Verity</h1>
             <p className="text-sm text-muted-foreground">
@@ -78,60 +90,34 @@ const Auth = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
-                <Input
-                  type="text"
-                  placeholder="Display name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="h-12 bg-card border-border"
-                />
+                <Input type="text" placeholder="Display name" value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)} className="h-12 bg-card border-border" />
               </motion.div>
             )}
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="email"
-                placeholder="Your email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-11 h-12 bg-card border-border"
-                required
-              />
+              <Input type="email" placeholder="Your email address" value={email}
+                onChange={(e) => setEmail(e.target.value)} className="pl-11 h-12 bg-card border-border" required />
             </div>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-11 h-12 bg-card border-border"
-                required
-                minLength={6}
-              />
+              <Input type="password" placeholder="Password" value={password}
+                onChange={(e) => setPassword(e.target.value)} className="pl-11 h-12 bg-card border-border" required minLength={6} />
             </div>
             <Button type="submit" variant="gold" size="lg" className="w-full group" disabled={loading}>
               {loading ? (
                 <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
               ) : mode === "login" ? (
-                <>
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Sign in
-                </>
+                <><LogIn className="w-4 h-4 mr-2" /> Sign in</>
               ) : (
-                <>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Create account
-                </>
+                <><UserPlus className="w-4 h-4 mr-2" /> Create account</>
               )}
             </Button>
           </form>
 
           <div className="mt-6 text-center">
-            <button
-              onClick={() => setMode(mode === "login" ? "signup" : "login")}
-              className="text-sm text-primary hover:text-primary/80 transition-colors"
-            >
+            <button onClick={() => setMode(mode === "login" ? "signup" : "login")}
+              className="text-sm text-primary hover:text-primary/80 transition-colors">
               {mode === "login" ? "New here? Create an account" : "Already have an account? Sign in"}
             </button>
           </div>
