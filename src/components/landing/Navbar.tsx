@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -34,9 +34,9 @@ const Navbar = () => {
           >
             How it works
           </a>
-          <Link to="/auth">
+          <Link to="/onboarding">
             <Button variant="gold-outline" size="sm">
-              Join
+              Get verified
             </Button>
           </Link>
         </div>

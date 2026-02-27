@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Users, UserPlus, Zap } from "lucide-react";
+import { Users, UserPlus, Zap, Share2, Clock } from "lucide-react";
 import DropCountdown from "./DropCountdown";
-import { format } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
+import { toast } from "sonner";
 
 interface DropCardProps {
   drop: {
@@ -26,6 +27,17 @@ interface DropCardProps {
 const DropCard = ({ drop, rsvpCount, isRsvpd, onRsvp, onCancel, index }: DropCardProps) => {
   const isLive = drop.status === "live";
   const capacityPercent = Math.min((rsvpCount / drop.max_capacity) * 100, 100);
+  const minutesUntil = differenceInMinutes(new Date(drop.scheduled_at), new Date());
+  const isSoon = minutesUntil > 0 && minutesUntil <= 5;
+
+  // Estimated wait: rough calculation based on queue position
+  const estimatedWaitMin = rsvpCount > 1 ? Math.ceil((rsvpCount / 2) * 0.75) : 0;
+
+  const handleShare = () => {
+    const url = `${window.location.origin}/lobby?drop=${drop.id}&invite=friend`;
+    navigator.clipboard.writeText(url);
+    toast.success("Invite link copied to clipboard");
+  };
 
   return (
     <motion.div
@@ -46,8 +58,16 @@ const DropCard = ({ drop, rsvpCount, isRsvpd, onRsvp, onCancel, index }: DropCar
         </div>
         {isLive ? (
           <span className="flex items-center gap-1.5 text-xs text-primary">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+            </span>
+            Live now
+          </span>
+        ) : isSoon ? (
+          <span className="flex items-center gap-1.5 text-xs text-primary animate-pulse">
             <Zap className="w-3 h-3 fill-primary" />
-            Live
+            Starting soon
           </span>
         ) : (
           <DropCountdown scheduledAt={drop.scheduled_at} />
@@ -65,6 +85,12 @@ const DropCard = ({ drop, rsvpCount, isRsvpd, onRsvp, onCancel, index }: DropCar
       <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
         <span>{format(new Date(drop.scheduled_at), "EEE d MMM · h:mm a")}</span>
         <span>{drop.duration_minutes} min</span>
+        {estimatedWaitMin > 0 && isRsvpd && (
+          <span className="flex items-center gap-1 text-primary/70">
+            <Clock className="w-3 h-3" />
+            ~{estimatedWaitMin} min wait
+          </span>
+        )}
       </div>
 
       {/* Capacity bar */}
@@ -103,8 +129,13 @@ const DropCard = ({ drop, rsvpCount, isRsvpd, onRsvp, onCancel, index }: DropCar
             Cancel RSVP
           </Button>
           {drop.is_friendfluence && (
-            <Button variant="outline" size="sm" className="text-primary border-primary/20">
-              <UserPlus className="w-3.5 h-3.5 mr-1" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-primary border-primary/20"
+              onClick={handleShare}
+            >
+              <Share2 className="w-3.5 h-3.5 mr-1" />
               Invite
             </Button>
           )}
