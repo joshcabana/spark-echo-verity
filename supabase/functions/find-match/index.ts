@@ -56,7 +56,10 @@ serve(async (req) => {
         { user_id: user.id, room_id, drop_id, status: "waiting", joined_at: new Date().toISOString() },
         { onConflict: "user_id,drop_id" }
       );
-    if (upsertErr) throw new Error("Failed to join queue: " + upsertErr.message);
+    if (upsertErr) {
+      console.error("Queue upsert error:", upsertErr);
+      throw new Error("Failed to join queue");
+    }
 
     // Attempt atomic match using raw SQL via rpc
     // We use a direct query approach: find oldest waiting user in same drop, not self, not blocked
@@ -69,7 +72,10 @@ serve(async (req) => {
       .order("joined_at", { ascending: true })
       .limit(10);
 
-    if (candErr) throw new Error("Query error: " + candErr.message);
+    if (candErr) {
+      console.error("Candidate query error:", candErr);
+      throw new Error("Matchmaking temporarily unavailable");
+    }
 
     // Filter out blocked users
     let matchedCandidate = null;
@@ -171,8 +177,11 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
+    console.error("find-match error:", error);
+    const safeMessages = ["Drop not found", "Drop is not live", "drop_id and room_id required", "Unauthorized", "Missing auth", "Failed to join queue", "Matchmaking temporarily unavailable", "Failed to create call"];
+    const msg = safeMessages.includes(error.message) ? error.message : "An error occurred";
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: msg }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

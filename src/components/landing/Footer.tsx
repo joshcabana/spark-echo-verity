@@ -21,7 +21,7 @@ const Footer = () => {
             <Link to="/transparency" className="hover:text-foreground transition-colors">
               Privacy
             </Link>
-            <Link to="/onboarding" className="hover:text-primary transition-colors">
+            <Link to="/auth" className="hover:text-primary transition-colors">
               Get verified
             </Link>
           </div>
