@@ -63,7 +63,7 @@ const HeroSection = () => {
           transition={{ duration: 0.8, delay: 1 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <Link to="/onboarding">
+          <Link to="/auth">
             <Button variant="gold" size="xl" className="group">
               Join your first Drop
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />

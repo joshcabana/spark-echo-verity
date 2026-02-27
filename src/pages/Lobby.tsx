@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Shield, User } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -179,10 +179,11 @@ const Lobby = () => {
               <span>AI safety on</span>
             </div>
           </div>
-          <Link to="/profile"
+          <button
+            onClick={() => navigate("/tokens")}
             className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors">
             <User className="w-4 h-4 text-muted-foreground" />
-          </Link>
+          </button>
         </div>
       </header>
 

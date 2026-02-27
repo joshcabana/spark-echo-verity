@@ -34,7 +34,7 @@ const Navbar = () => {
           >
             How it works
           </a>
-          <Link to="/onboarding">
+          <Link to="/auth">
             <Button variant="gold-outline" size="sm">
               Get verified
             </Button>
