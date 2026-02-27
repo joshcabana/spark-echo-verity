@@ -5,6 +5,7 @@
 **Verity** is a verified, anonymous speed dating platform designed to solve the burnout epidemic in modern dating apps. The swipe economy is broken — 78% of dating-app users experience burnout, 80% of women report dating fatigue, and ghosting accounts for 41% of that fatigue. Verity's answer is radical: real eyes, real voice, 45 seconds, and dignity always.
 
 **Core mechanic:** Users RSVP to themed, time-limited "Drops" (scheduled speed dating sessions). When a Drop goes live, participants are matched anonymously for a 45-second video call. Both choose Spark or Pass independently. Only a **mutual spark** reveals identities and unlocks post-call chat — no rejection notifications, ever.
+**Project overview**: See [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) for a detailed examination of objectives, strategy, timelines, and current status.
 
 ---
 
