@@ -38,29 +38,25 @@ Verity is a verified, anonymous speed-dating platform that replaces swipe-based 
   - `create-checkout`: JWT auth + price ID allowlist + server-side URL construction
   - `customer-portal`: origin allowlist for return_url (no more open redirect)
   - `agora-token`: real RTC token generation via `RtcTokenBuilder` with 10-min expiry
-  - `stripe-webhook`: idempotency via `stripe_processed_events` table + `stripe_customer_id` on profiles for deterministic lookup
+  - `stripe-webhook`: idempotency via `stripe_processed_events` table + `stripe_customer_id` on profiles for deterministic lookup + paginated user search fallback
   - `ai-moderate`: auth-gated with call participation verification
   - All edge functions return generic errors to clients; log details server-side
 - **Realtime subscriptions** for drops, RSVPs, calls, and messages
 - **Storage bucket** (`verifications`) with private access and user-scoped RLS for selfie uploads
+- **Admin dashboard wired to real data** — moderation_flags, appeals, profiles, platform_stats, rooms, runtime_alert_events all queried live
+- **Transparency page wired to real data** — platform_stats queried live for stats, gender balance, safety report
+- **Code splitting implemented** — React.lazy for LiveCall, SparkHistory, Chat, TokenShop, Admin, Transparency, Appeal
+- **Lobby footer text fixed** — "AI-moderated in real time" → "Safety first" to match header claim
 
 ### In Progress / Known Gaps
 
-1. **AI moderation is a stub** — `ai-moderate` returns `Math.random() * 0.3` and never flags (score > 0.6 is unreachable). The Lobby footer still says "AI-moderated in real time" (line 237 of Lobby.tsx) even though line 179 was corrected to "Safety first". The Lovable AI key is now configured; wiring real moderation is the next logical step.
+1. **AI moderation is a stub** — `ai-moderate` returns `Math.random() * 0.3` and never flags. The Lovable AI key is configured; wiring real moderation is the next logical step.
 
-2. **Admin page uses entirely mock data** — All moderation queue items, appeals, analytics KPIs, charts, user lists, and alerts in `Admin.tsx` are hardcoded arrays (lines 21-55). None are wired to real database queries.
+2. **`any` type usage** — widespread across Lobby.tsx (drops, rsvpCounts), AuthContext (profile), and edge function responses.
 
-3. **Transparency page likely uses static data** — needs verification, but the PROJECT_OVERVIEW noted this.
+3. **No dedicated profile page** — BottomNav "Profile" goes to `/lobby`, user icon goes to `/tokens`. There is no `/profile` route.
 
-4. **`stripe-webhook` email fallback is fragile** — `listUsers({ page: 1, perPage: 50 })` scans only the first 50 users by email. For >50 users this silently fails to find the match.
-
-5. **Lobby.tsx line 237 inconsistency** — says "AI-moderated in real time" while line 179 correctly says "Safety first". These two claims contradict each other.
-
-6. **`any` type usage** — widespread across Lobby.tsx (drops, rsvpCounts), AuthContext (profile), and edge function responses. Causes ESLint failures.
-
-7. **Bundle size** — Vite warns about >2.5 MB bundle; Admin and LiveCall should use dynamic imports.
-
-8. **No dedicated profile page** — BottomNav "Profile" goes to `/lobby`, user icon goes to `/tokens`. There is no `/profile` route.
+4. **Settings section in Admin uses static defaults** — not wired to a settings table or config store.
 
 ## Challenges and Mitigations
 
@@ -70,24 +66,14 @@ Verity is a verified, anonymous speed-dating platform that replaces swipe-based 
 | Webhook idempotency (double-crediting) | Resolved | `stripe_processed_events` table with PK on event_id |
 | Agora stub tokens | Resolved | Real `RtcTokenBuilder.buildTokenWithUid` with 10-min expiry |
 | AI moderation stub | Open | Function is auth-gated but returns random safe scores; needs real provider integration |
-| Admin mock data | Open | All admin sections use hardcoded arrays; need to wire to real DB queries |
-| User lookup fragility in webhook | Open | `listUsers` only checks first 50; should use Supabase admin API with email filter or store mapping at signup |
-| Bundle size (>2.5 MB) | Open | Needs code-splitting with `React.lazy` for heavy routes |
+| Admin mock data | Resolved | All admin sections wired to real Supabase queries |
+| User lookup fragility in webhook | Resolved | Paginated search through all users instead of first 50 only |
+| Bundle size (>2.5 MB) | Resolved | Code-splitting with `React.lazy` for 7 heavy routes |
 | TypeScript `any` usage | Open | Needs typed Supabase response models throughout |
-
-## Adjustments Made
-
-1. Security hardening was promoted from a later sprint to immediate — all 5 critical findings resolved before any public launch
-2. "AI safety on" claim changed to "Safety first" in the lobby header (though the footer text still claims real-time AI moderation)
-3. `stripe_customer_id` mapping added to profiles for deterministic webhook processing instead of email-only lookup
-4. Customer portal rewritten with JWT auth (previously accepted email from request body)
 
 ## Recommended Next Steps (Priority Order)
 
-1. **Fix Lobby.tsx line 237** — change "AI-moderated in real time" to match the "Safety first" claim
-2. **Wire Admin dashboard to real data** — replace mock arrays with Supabase queries for moderation_flags, appeals, profiles, and platform_stats
-3. **Implement real AI moderation** — use the configured Lovable AI key to power `ai-moderate` with actual content analysis
-4. **Fix webhook user lookup** — use Supabase admin `listUsers` with email filter parameter instead of scanning first 50
-5. **Add code splitting** — `React.lazy` for Admin, LiveCall, TokenShop routes
-6. **Create /profile page** — dedicated profile management with display name, avatar, verification status
-
+1. **Implement real AI moderation** — use the configured Lovable AI key to power `ai-moderate` with actual content analysis
+2. **Create /profile page** — dedicated profile management with display name, avatar, verification status
+3. **Fix TypeScript `any` usage** — add proper types for drops, rsvpCounts, profile in AuthContext
+4. **Wire Admin settings to a config table** — persist moderation thresholds and call duration settings

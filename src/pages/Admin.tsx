@@ -14,45 +14,13 @@ import {
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent
 } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, LineChart, Line, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import type { Tables } from "@/integrations/supabase/types";
 
 type AdminSection = "moderation" | "appeals" | "analytics" | "users" | "settings";
-
-const dailySparksData = [
-  { day: "Mon", sparks: 42 }, { day: "Tue", sparks: 58 }, { day: "Wed", sparks: 65 },
-  { day: "Thu", sparks: 53 }, { day: "Fri", sparks: 78 }, { day: "Sat", sparks: 92 },
-  { day: "Sun", sparks: 84 },
-];
-
-const roomPopularity = [
-  { name: "Creative Minds", value: 340 }, { name: "Tech Professionals", value: 280 },
-  { name: "Adventure Seekers", value: 220 }, { name: "Bookworms", value: 160 },
-];
-
-const moderationQueue = [
-  { id: "flag-1", userId: "U-4829", room: "Creative Minds", score: 0.87, reason: "Inappropriate language detected", time: "2 min ago" },
-  { id: "flag-2", userId: "U-1038", room: "Tech Professionals", score: 0.62, reason: "Potential harassment", time: "8 min ago" },
-  { id: "flag-3", userId: "U-7291", room: "Adventure Seekers", score: 0.45, reason: "Nudity detection triggered", time: "14 min ago" },
-];
-
-const appealsData = [
-  { id: "appeal-1", userId: "U-3847", reason: "False positive — was discussing art history", status: "pending" as const, date: "Today" },
-  { id: "appeal-2", userId: "U-9102", reason: "Accidental camera glitch flagged as nudity", status: "pending" as const, date: "Yesterday" },
-  { id: "appeal-3", userId: "U-5534", reason: "Background noise misidentified as aggression", status: "approved" as const, date: "2 days ago" },
-];
-
-const recentAlerts = [
-  { id: 1, message: "Moderation queue exceeding 10 items", time: "5 min ago", level: "warn" },
-  { id: 2, message: "Spike in user reports — Creative Minds room", time: "22 min ago", level: "error" },
-  { id: 3, message: "New user registrations +34% today", time: "1 hr ago", level: "info" },
-];
-
-const usersData = [
-  { id: "U-4829", name: "Alex M.", email: "a***@email.com", status: "active", pass: true, sparks: 12 },
-  { id: "U-1038", name: "Jordan K.", email: "j***@email.com", status: "warned", pass: false, sparks: 3 },
-  { id: "U-7291", name: "Sam R.", email: "s***@email.com", status: "active", pass: true, sparks: 28 },
-  { id: "U-3847", name: "Casey L.", email: "c***@email.com", status: "banned", pass: false, sparks: 0 },
-];
 
 const chartConfig = {
   sparks: { label: "Sparks", color: "hsl(43 72% 55%)" },
@@ -72,6 +40,125 @@ const navItems: { id: AdminSection; label: string; icon: React.ElementType }[] =
 const Admin = () => {
   const [section, setSection] = useState<AdminSection>("moderation");
   const [userSearch, setUserSearch] = useState("");
+  const queryClient = useQueryClient();
+
+  // ═══ REAL DATA QUERIES ═══
+
+  const { data: moderationFlags = [] } = useQuery({
+    queryKey: ["admin-moderation-flags"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("moderation_flags")
+        .select("*")
+        .is("action_taken", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: appeals = [] } = useQuery({
+    queryKey: ["admin-appeals"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appeals")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["admin-profiles", userSearch],
+    queryFn: async () => {
+      let query = supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (userSearch.trim()) {
+        query = query.or(`display_name.ilike.%${userSearch}%,handle.ilike.%${userSearch}%,user_id.eq.${userSearch.trim()}`);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: platformStats } = useQuery({
+    queryKey: ["admin-platform-stats"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_stats")
+        .select("*")
+        .order("stat_date", { ascending: false })
+        .limit(1)
+        .single();
+      if (error && error.code !== "PGRST116") throw error;
+      return data;
+    },
+  });
+
+  const { data: alerts = [] } = useQuery({
+    queryKey: ["admin-alerts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("runtime_alert_events")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: roomStats = [] } = useQuery({
+    queryKey: ["admin-room-stats"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rooms")
+        .select("name, active_users")
+        .order("active_users", { ascending: false })
+        .limit(4);
+      if (error) throw error;
+      return data.map((r) => ({ name: r.name, value: r.active_users ?? 0 }));
+    },
+  });
+
+  // ═══ MUTATIONS ═══
+
+  const flagActionMutation = useMutation({
+    mutationFn: async ({ flagId, action }: { flagId: string; action: "ban" | "warn" | "clear" }) => {
+      const { error } = await supabase
+        .from("moderation_flags")
+        .update({ action_taken: action, reviewed_at: new Date().toISOString() })
+        .eq("id", flagId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-moderation-flags"] });
+      toast.success("Action applied");
+    },
+  });
+
+  const appealActionMutation = useMutation({
+    mutationFn: async ({ appealId, status }: { appealId: string; status: "upheld" | "denied" }) => {
+      const { error } = await supabase
+        .from("appeals")
+        .update({ status, reviewed_at: new Date().toISOString() })
+        .eq("id", appealId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-appeals"] });
+      toast.success("Appeal updated");
+    },
+  });
+
+  const genderBalance = platformStats?.gender_balance as { men?: number; women?: number; nonbinary?: number } | null;
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -107,10 +194,15 @@ const Admin = () => {
             <span className="text-xs text-muted-foreground uppercase tracking-luxury">Alerts</span>
           </div>
           <div className="space-y-2">
-            {recentAlerts.map((alert) => (
+            {alerts.length === 0 && (
+              <p className="text-[11px] text-muted-foreground/40 px-2">No recent alerts</p>
+            )}
+            {alerts.map((alert) => (
               <div key={alert.id} className="px-2 py-1.5 rounded-md bg-secondary/30">
                 <p className="text-[11px] text-foreground/80 leading-tight">{alert.message}</p>
-                <p className="text-[9px] text-muted-foreground/50 mt-0.5">{alert.time}</p>
+                <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                  {new Date(alert.created_at).toLocaleString()}
+                </p>
               </div>
             ))}
           </div>
@@ -149,12 +241,16 @@ const Admin = () => {
             {section === "moderation" && (
               <motion.div key="mod" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
                 <h1 className="font-serif text-2xl text-foreground mb-1">Moderation Queue</h1>
-                <p className="text-sm text-muted-foreground/60 mb-6">{moderationQueue.length} items require attention</p>
+                <p className="text-sm text-muted-foreground/60 mb-6">{moderationFlags.length} items require attention</p>
+
+                {moderationFlags.length === 0 && (
+                  <p className="text-center text-muted-foreground/50 py-16 text-sm">Queue is clear — no pending flags.</p>
+                )}
 
                 <div className="space-y-3">
-                  {moderationQueue.map((item, i) => (
+                  {moderationFlags.map((flag, i) => (
                     <motion.div
-                      key={item.id}
+                      key={flag.id}
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.06 }}
@@ -163,34 +259,37 @@ const Admin = () => {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium text-foreground">{item.userId}</span>
-                            <Badge variant="outline" className="text-[10px]">{item.room}</Badge>
-                            <span className="text-[10px] text-muted-foreground/50">{item.time}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground/70">{item.reason}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <div className="h-1.5 w-20 rounded-full bg-secondary overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-destructive/70"
-                                style={{ width: `${item.score * 100}%` }}
-                              />
-                            </div>
+                            <span className="text-sm font-medium text-foreground font-mono">{flag.flagged_user_id.slice(0, 8)}</span>
                             <span className="text-[10px] text-muted-foreground/50">
-                              AI confidence: {Math.round(item.score * 100)}%
+                              {new Date(flag.created_at).toLocaleString()}
                             </span>
                           </div>
+                          <p className="text-sm text-muted-foreground/70">{flag.reason ?? "No reason provided"}</p>
+                          {flag.ai_confidence != null && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <div className="h-1.5 w-20 rounded-full bg-secondary overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-destructive/70"
+                                  style={{ width: `${Number(flag.ai_confidence) * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-muted-foreground/50">
+                                AI confidence: {Math.round(Number(flag.ai_confidence) * 100)}%
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Play className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => flagActionMutation.mutate({ flagId: flag.id, action: "ban" })}>
                             <Ban className="w-3.5 h-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary">
+                          <Button variant="ghost" size="icon" className="h-8 w-8"
+                            onClick={() => flagActionMutation.mutate({ flagId: flag.id, action: "warn" })}>
                             <AlertTriangle className="w-3.5 h-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary"
+                            onClick={() => flagActionMutation.mutate({ flagId: flag.id, action: "clear" })}>
                             <Check className="w-3.5 h-3.5" />
                           </Button>
                         </div>
@@ -207,6 +306,10 @@ const Admin = () => {
                 <h1 className="font-serif text-2xl text-foreground mb-1">Appeals Inbox</h1>
                 <p className="text-sm text-muted-foreground/60 mb-6">Review user appeals with care and fairness</p>
 
+                {appeals.length === 0 && (
+                  <p className="text-center text-muted-foreground/50 py-16 text-sm">No appeals to review.</p>
+                )}
+
                 <div className="rounded-lg border border-border overflow-hidden">
                   <Table>
                     <TableHeader>
@@ -219,27 +322,32 @@ const Admin = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {appealsData.map((appeal) => (
+                      {appeals.map((appeal) => (
                         <TableRow key={appeal.id}>
-                          <TableCell className="font-medium text-foreground">{appeal.userId}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm max-w-xs truncate">{appeal.reason}</TableCell>
-                          <TableCell className="text-muted-foreground/60 text-sm">{appeal.date}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{appeal.user_id.slice(0, 8)}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm max-w-xs truncate">{appeal.explanation}</TableCell>
+                          <TableCell className="text-muted-foreground/60 text-sm">{new Date(appeal.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <Badge
                               variant={appeal.status === "pending" ? "outline" : "secondary"}
-                              className={`text-[10px] ${appeal.status === "approved" ? "text-primary border-primary/30" : ""}`}
+                              className={`text-[10px] ${
+                                appeal.status === "upheld" ? "text-primary border-primary/30" :
+                                appeal.status === "denied" ? "text-destructive border-destructive/30" : ""
+                              }`}
                             >
-                              {appeal.status === "pending" ? "Pending" : "Approved"}
+                              {appeal.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
                             {appeal.status === "pending" && (
                               <div className="flex items-center justify-end gap-1">
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:text-primary">
+                                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:text-primary"
+                                  onClick={() => appealActionMutation.mutate({ appealId: appeal.id, status: "upheld" })}>
                                   <Check className="w-3 h-3 mr-1" />
-                                  Approve
+                                  Uphold
                                 </Button>
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive">
+                                <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive"
+                                  onClick={() => appealActionMutation.mutate({ appealId: appeal.id, status: "denied" })}>
                                   <X className="w-3 h-3 mr-1" />
                                   Deny
                                 </Button>
@@ -263,10 +371,10 @@ const Admin = () => {
                 {/* KPI row */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
                   {[
-                    { label: "Sparks today", value: "84", icon: Activity, trend: "+12%" },
-                    { label: "Active users", value: "1,247", icon: Users, trend: "+8%" },
-                    { label: "Moderation rate", value: "2.3%", icon: Shield, trend: "-0.4%" },
-                    { label: "Retention (7d)", value: "68%", icon: TrendingUp, trend: "+3%" },
+                    { label: "Total sparks", value: String(platformStats?.total_sparks ?? 0), icon: Activity },
+                    { label: "Active users", value: String(platformStats?.active_users ?? 0), icon: Users },
+                    { label: "Moderation flags", value: String(platformStats?.moderation_flags_count ?? 0), icon: Shield },
+                    { label: "AI accuracy", value: `${platformStats?.ai_accuracy ?? 0}%`, icon: TrendingUp },
                   ].map((kpi, i) => (
                     <motion.div
                       key={kpi.label}
@@ -279,10 +387,7 @@ const Admin = () => {
                         <kpi.icon className="w-3.5 h-3.5 text-muted-foreground/50" />
                         <span className="text-[11px] text-muted-foreground/60">{kpi.label}</span>
                       </div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-serif text-xl text-foreground">{kpi.value}</span>
-                        <span className="text-[10px] text-primary">{kpi.trend}</span>
-                      </div>
+                      <span className="font-serif text-xl text-foreground">{kpi.value}</span>
                     </motion.div>
                   ))}
                 </div>
@@ -290,29 +395,37 @@ const Admin = () => {
                 {/* Charts */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="rounded-lg border border-border bg-card p-5">
-                    <h3 className="text-sm font-medium text-foreground mb-4">Daily Sparks</h3>
+                    <h3 className="text-sm font-medium text-foreground mb-4">Gender Balance</h3>
                     <ChartContainer config={chartConfig} className="h-48 w-full">
-                      <BarChart data={dailySparksData}>
-                        <XAxis dataKey="day" tickLine={false} axisLine={false} fontSize={11} />
-                        <YAxis tickLine={false} axisLine={false} fontSize={11} />
+                      <BarChart data={[
+                        { gender: "Women", count: genderBalance?.women ?? 0 },
+                        { gender: "Men", count: genderBalance?.men ?? 0 },
+                        { gender: "Non-binary", count: genderBalance?.nonbinary ?? 0 },
+                      ]} layout="vertical">
+                        <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} />
+                        <YAxis type="category" dataKey="gender" tickLine={false} axisLine={false} fontSize={12} width={80} />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="sparks" fill="hsl(43 72% 55%)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="count" fill="hsl(43 72% 55%)" radius={[0, 4, 4, 0]} barSize={20} />
                       </BarChart>
                     </ChartContainer>
                   </div>
 
                   <div className="rounded-lg border border-border bg-card p-5">
                     <h3 className="text-sm font-medium text-foreground mb-4">Room Popularity</h3>
-                    <ChartContainer config={chartConfig} className="h-48 w-full">
-                      <PieChart>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Pie data={roomPopularity} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70}>
-                          {roomPopularity.map((_, i) => (
-                            <Cell key={i} fill={pieColors[i]} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ChartContainer>
+                    {roomStats.length > 0 ? (
+                      <ChartContainer config={chartConfig} className="h-48 w-full">
+                        <PieChart>
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <Pie data={roomStats} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70}>
+                            {roomStats.map((_: unknown, i: number) => (
+                              <Cell key={i} fill={pieColors[i % pieColors.length]} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ChartContainer>
+                    ) : (
+                      <p className="text-sm text-muted-foreground/50 text-center py-16">No room data yet</p>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -327,7 +440,7 @@ const Admin = () => {
                 <div className="relative mb-5">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
                   <Input
-                    placeholder="Search by ID, name, or email…"
+                    placeholder="Search by name or handle…"
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
                     className="pl-10"
@@ -338,43 +451,38 @@ const Admin = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>ID</TableHead>
+                        <TableHead>User ID</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Pass</TableHead>
-                        <TableHead>Sparks</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>Tier</TableHead>
+                        <TableHead>Tokens</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {usersData
-                        .filter((u) => !userSearch || u.id.toLowerCase().includes(userSearch.toLowerCase()) || u.name.toLowerCase().includes(userSearch.toLowerCase()))
-                        .map((user) => (
-                          <TableRow key={user.id}>
-                            <TableCell className="font-mono text-xs text-muted-foreground">{user.id}</TableCell>
-                            <TableCell className="font-medium text-foreground">{user.name}</TableCell>
-                            <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] ${
-                                  user.status === "banned" ? "text-destructive border-destructive/30" :
-                                  user.status === "warned" ? "text-amber-500 border-amber-500/30" :
-                                  "text-primary border-primary/30"
-                                }`}
-                              >
-                                {user.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{user.pass ? <Check className="w-3.5 h-3.5 text-primary" /> : <span className="text-muted-foreground/30">—</span>}</TableCell>
-                            <TableCell className="tabular-nums text-muted-foreground">{user.sparks}</TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="sm" className="h-7 text-xs">
-                                <Eye className="w-3 h-3 mr-1" />
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                      {profiles.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground/50 py-8">
+                            No users found
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {profiles.map((profile) => (
+                        <TableRow key={profile.id}>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{profile.user_id.slice(0, 8)}</TableCell>
+                          <TableCell className="font-medium text-foreground">{profile.display_name ?? "—"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] ${
+                              profile.verification_status === "verified" ? "text-primary border-primary/30" :
+                              profile.is_active === false ? "text-destructive border-destructive/30" :
+                              ""
+                            }`}>
+                              {profile.is_active === false ? "inactive" : profile.verification_status ?? "unverified"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{profile.subscription_tier ?? "free"}</TableCell>
+                          <TableCell className="tabular-nums text-muted-foreground">{profile.token_balance}</TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>

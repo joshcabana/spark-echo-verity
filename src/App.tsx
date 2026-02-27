@@ -9,16 +9,24 @@ import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import Lobby from "./pages/Lobby";
-import LiveCall from "./pages/LiveCall";
-import SparkHistory from "./pages/SparkHistory";
-import Chat from "./pages/Chat";
-import TokenShop from "./pages/TokenShop";
-import Admin from "./pages/Admin";
-import Transparency from "./pages/Transparency";
-import Appeal from "./pages/Appeal";
 import NotFound from "./pages/NotFound";
+import { lazy, Suspense } from "react";
+
+const LiveCall = lazy(() => import("./pages/LiveCall"));
+const SparkHistory = lazy(() => import("./pages/SparkHistory"));
+const Chat = lazy(() => import("./pages/Chat"));
+const TokenShop = lazy(() => import("./pages/TokenShop"));
+const Admin = lazy(() => import("./pages/Admin"));
+const Transparency = lazy(() => import("./pages/Transparency"));
+const Appeal = lazy(() => import("./pages/Appeal"));
 
 const queryClient = new QueryClient();
+
+const LazyFallback = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -27,20 +35,22 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/lobby" element={<ProtectedRoute><Lobby /></ProtectedRoute>} />
-            <Route path="/call/:callId" element={<ProtectedRoute><LiveCall /></ProtectedRoute>} />
-            <Route path="/sparks" element={<ProtectedRoute><SparkHistory /></ProtectedRoute>} />
-            <Route path="/chat/:sparkId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-            <Route path="/tokens" element={<ProtectedRoute><TokenShop /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
-            <Route path="/transparency" element={<Transparency />} />
-            <Route path="/appeal" element={<ProtectedRoute><Appeal /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <Suspense fallback={<LazyFallback />}>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/lobby" element={<ProtectedRoute><Lobby /></ProtectedRoute>} />
+              <Route path="/call/:callId" element={<ProtectedRoute><LiveCall /></ProtectedRoute>} />
+              <Route path="/sparks" element={<ProtectedRoute><SparkHistory /></ProtectedRoute>} />
+              <Route path="/chat/:sparkId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+              <Route path="/tokens" element={<ProtectedRoute><TokenShop /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
+              <Route path="/transparency" element={<Transparency />} />
+              <Route path="/appeal" element={<ProtectedRoute><Appeal /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
