@@ -1,16 +1,21 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Shield } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MatchmakingOverlayProps {
   open: boolean;
   roomName: string;
+  dropTitle: string;
+  dropId: string;
   onCancel: () => void;
 }
 
-const MatchmakingOverlay = ({ open, roomName, onCancel }: MatchmakingOverlayProps) => {
+const MatchmakingOverlay = ({ open, roomName, dropTitle, dropId, onCancel }: MatchmakingOverlayProps) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -22,13 +27,46 @@ const MatchmakingOverlay = ({ open, roomName, onCancel }: MatchmakingOverlayProp
     return () => clearInterval(t);
   }, [open]);
 
-  // Simulate finding a match after 4–7 seconds
+  // Poll for match every 2 seconds
   useEffect(() => {
-    if (!open) return;
-    const delay = 4000 + Math.random() * 3000;
-    const t = setTimeout(() => navigate("/call"), delay);
-    return () => clearTimeout(t);
-  }, [open, navigate]);
+    if (!open || !user || !dropId) return;
+
+    const poll = setInterval(async () => {
+      const { data: queueEntry } = await supabase
+        .from("matchmaking_queue")
+        .select("call_id, status")
+        .eq("user_id", user.id)
+        .eq("drop_id", dropId)
+        .maybeSingle();
+
+      if (queueEntry?.call_id && queueEntry.status === "matched") {
+        const { data: call } = await supabase
+          .from("calls")
+          .select("id, agora_channel")
+          .eq("id", queueEntry.call_id)
+          .single();
+
+        if (call) {
+          clearInterval(poll);
+          onCancel(); // close overlay
+          navigate(`/call/${call.id}?channel=${encodeURIComponent(call.agora_channel || "")}`);
+        }
+      }
+    }, 2000);
+
+    return () => clearInterval(poll);
+  }, [open, user, dropId, navigate, onCancel]);
+
+  const handleLeaveQueue = async () => {
+    if (user && dropId) {
+      await supabase
+        .from("matchmaking_queue")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("drop_id", dropId);
+    }
+    onCancel();
+  };
 
   if (!open) return null;
 
@@ -48,16 +86,8 @@ const MatchmakingOverlay = ({ open, roomName, onCancel }: MatchmakingOverlayProp
           {[1, 2, 3].map((ring) => (
             <motion.div
               key={ring}
-              animate={{
-                scale: [1, 1.5 + ring * 0.3],
-                opacity: [0.15, 0],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                delay: ring * 0.5,
-                ease: "easeOut",
-              }}
+              animate={{ scale: [1, 1.5 + ring * 0.3], opacity: [0.15, 0] }}
+              transition={{ duration: 2.5, repeat: Infinity, delay: ring * 0.5, ease: "easeOut" }}
               className="absolute inset-0 rounded-full border border-primary/20"
             />
           ))}
@@ -76,18 +106,22 @@ const MatchmakingOverlay = ({ open, roomName, onCancel }: MatchmakingOverlayProp
             Matching you with someone who's here for the same reason.
           </p>
           <p className="text-xs text-muted-foreground/50 mb-1">
-            Room: {roomName}
+            {dropTitle} · {roomName}
           </p>
-          <p className="text-xs text-muted-foreground/40 tabular-nums">
+          <p className="text-xs text-muted-foreground/40 tabular-nums mb-3">
             {elapsed}s · Estimated wait ~45 seconds
           </p>
+          <div className="flex items-center justify-center gap-1.5 text-[10px] text-primary/60">
+            <Shield className="w-3 h-3" />
+            <span>Anonymous until mutual spark · Safety on</span>
+          </div>
         </motion.div>
 
         <motion.button
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
-          onClick={onCancel}
+          onClick={handleLeaveQueue}
           className="mt-12 text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
         >
           Leave queue

@@ -9,9 +9,11 @@ import AgeGateStep from "@/components/onboarding/AgeGateStep";
 import SignInStep from "@/components/onboarding/SignInStep";
 import PhoneVerifyStep from "@/components/onboarding/PhoneVerifyStep";
 import SelfieStep from "@/components/onboarding/SelfieStep";
+import SafetyPledgeStep from "@/components/onboarding/SafetyPledgeStep";
 import PreferencesStep from "@/components/onboarding/PreferencesStep";
+import DropReadyStep from "@/components/onboarding/DropReadyStep";
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 8;
 
 const Onboarding = () => {
   const [step, setStep] = useState(0);
@@ -47,13 +49,17 @@ const Onboarding = () => {
 
   const handlePreferencesComplete = async (prefs: Record<string, any>) => {
     if (!user) return;
+    await saveStep(7, { preferences: prefs });
+    setStep(7);
+  };
+
+  const handleDropReady = async () => {
+    if (!user) return;
     await supabase.from("user_trust").upsert(
       {
         user_id: user.id,
         onboarding_step: TOTAL_STEPS,
         onboarding_complete: true,
-        safety_pledge_accepted: true,
-        preferences: prefs,
       } as any,
       { onConflict: "user_id" }
     );
@@ -64,7 +70,6 @@ const Onboarding = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Progress bar */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border px-6 py-3">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <span className="text-xs text-muted-foreground font-mono">
@@ -75,36 +80,27 @@ const Onboarding = () => {
         </div>
       </div>
 
-      {/* Step content */}
       <div className="flex-1 flex items-center justify-center py-12">
         <AnimatePresence mode="wait">
           {step === 0 && <WelcomeStep key="welcome" onNext={() => goTo(1)} />}
           {step === 1 && (
-            <AgeGateStep
-              key="age"
-              onNext={(d) => {
-                setDob(d);
-                goTo(2, { dob: d });
-              }}
-            />
+            <AgeGateStep key="age" onNext={(d) => { setDob(d); goTo(2, { dob: d }); }} />
           )}
           {step === 2 && <SignInStep key="signin" onNext={() => goTo(3)} />}
           {step === 3 && (
-            <PhoneVerifyStep
-              key="phone"
-              onNext={() => goTo(4, { phone_verified: true })}
-            />
+            <PhoneVerifyStep key="phone" onNext={() => goTo(4, { phone_verified: true })} />
           )}
           {step === 4 && (
-            <SelfieStep
-              key="selfie"
-              onNext={(verified) =>
-                goTo(5, { selfie_verified: verified })
-              }
-            />
+            <SelfieStep key="selfie" onNext={(verified) => goTo(5, { selfie_verified: verified })} />
           )}
           {step === 5 && (
+            <SafetyPledgeStep key="pledge" onNext={() => goTo(6, { safety_pledge_accepted: true })} />
+          )}
+          {step === 6 && (
             <PreferencesStep key="prefs" onComplete={handlePreferencesComplete} />
+          )}
+          {step === 7 && (
+            <DropReadyStep key="drop-ready" onComplete={handleDropReady} />
           )}
         </AnimatePresence>
       </div>

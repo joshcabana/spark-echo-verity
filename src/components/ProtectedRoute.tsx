@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
@@ -7,7 +7,8 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
-  const { session, isLoading, isAdmin } = useAuth();
+  const { session, isLoading, isAdmin, onboardingComplete } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -18,6 +19,12 @@ const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps)
   }
 
   if (!session) return <Navigate to="/auth" replace />;
+
+  // Enforce onboarding completion (except when already on onboarding)
+  if (!onboardingComplete && !location.pathname.startsWith("/onboarding")) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   if (requireAdmin && !isAdmin) return <Navigate to="/lobby" replace />;
 
   return <>{children}</>;

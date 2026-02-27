@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, UserPlus, LogOut, Phone } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Shield, UserPlus, LogOut, Phone, Flag } from "lucide-react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import CallCountdown from "@/components/call/CallCountdown";
 import CallControls from "@/components/call/CallControls";
 import ConnectionIndicator from "@/components/call/ConnectionIndicator";
@@ -9,39 +12,116 @@ import VideoArea from "@/components/call/VideoArea";
 import SparkPassButtons from "@/components/call/SparkPassButtons";
 import GuardianNet from "@/components/call/GuardianNet";
 import SafeExitModal from "@/components/call/SafeExitModal";
-import SparkReflection from "@/components/call/SparkReflection";
-import VoiceIntro from "@/components/call/VoiceIntro";
 import MutualSparkReveal from "@/components/call/MutualSparkReveal";
+import { useAgoraCall } from "@/hooks/useAgoraCall";
 
 type CallPhase =
+  | "loading"
   | "connecting"
   | "live"
   | "deciding"
   | "waiting"
   | "mutual-spark"
   | "no-spark"
-  | "reflection"
-  | "voice-intro"
   | "complete";
 
 const CALL_DURATION = 45;
 
 const LiveCall = () => {
+  const { callId } = useParams<{ callId: string }>();
+  const [searchParams] = useSearchParams();
+  const channelFromUrl = searchParams.get("channel") || "";
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<CallPhase>("connecting");
+  const { user } = useAuth();
+
+  const [phase, setPhase] = useState<CallPhase>("loading");
   const [secondsLeft, setSecondsLeft] = useState(CALL_DURATION);
   const [elapsed, setElapsed] = useState(0);
   const [guardianOpen, setGuardianOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [myChoice, setMyChoice] = useState<"spark" | "pass" | null>(null);
-  const [micOn, setMicOn] = useState(true);
-  const [cameraOn, setCameraOn] = useState(true);
 
-  // Simulate connection
+  // Call data from DB
+  const [callData, setCallData] = useState<any>(null);
+  const [myRole, setMyRole] = useState<"caller" | "callee" | null>(null);
+  const [partnerId, setPartnerId] = useState<string | null>(null);
+
+  // Agora params
+  const [agoraParams, setAgoraParams] = useState({ appId: "", token: null as string | null, uid: 0 });
+
+  const {
+    localVideoRef,
+    remoteVideoRef,
+    isRemoteConnected,
+    isJoined,
+    micOn,
+    cameraOn,
+    error: agoraError,
+    leave,
+    toggleMic,
+    toggleCamera,
+  } = useAgoraCall({
+    appId: agoraParams.appId,
+    channel: channelFromUrl,
+    token: agoraParams.token,
+    uid: agoraParams.uid,
+    enabled: phase === "connecting" && !!agoraParams.appId,
+  });
+
+  // Fetch call data and get Agora token
   useEffect(() => {
-    const t = setTimeout(() => setPhase("live"), 2800);
-    return () => clearTimeout(t);
-  }, []);
+    if (!callId || !user) return;
+
+    const fetchCall = async () => {
+      const { data: call, error } = await supabase
+        .from("calls")
+        .select("*")
+        .eq("id", callId)
+        .single();
+
+      if (error || !call) {
+        toast.error("Call not found");
+        navigate("/lobby");
+        return;
+      }
+
+      setCallData(call);
+      const role = call.caller_id === user.id ? "caller" : "callee";
+      setMyRole(role);
+      setPartnerId(role === "caller" ? call.callee_id : call.caller_id);
+
+      // Get Agora token
+      const channel = channelFromUrl || call.agora_channel;
+      const { data: tokenData, error: tokenErr } = await supabase.functions.invoke("agora-token", {
+        body: { call_id: callId, channel },
+      });
+
+      if (tokenErr) {
+        toast.error("Failed to get call credentials");
+        navigate("/lobby");
+        return;
+      }
+
+      setAgoraParams({
+        appId: tokenData.appId,
+        token: tokenData.token,
+        uid: tokenData.uid,
+      });
+      setPhase("connecting");
+    };
+
+    fetchCall();
+  }, [callId, user]);
+
+  // When Agora joins, start the live phase
+  useEffect(() => {
+    if (isJoined && phase === "connecting") {
+      // Small delay for connecting animation
+      const t = setTimeout(() => setPhase("live"), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [isJoined, phase]);
 
   // Countdown
   useEffect(() => {
@@ -57,75 +137,146 @@ const LiveCall = () => {
     return () => clearInterval(t);
   }, [phase, secondsLeft]);
 
-  const handleChoice = useCallback((choice: "spark" | "pass") => {
+  // Handle choice: write to calls table
+  const handleChoice = useCallback(async (choice: "spark" | "pass") => {
+    if (!callId || !myRole) return;
     setMyChoice(choice);
     setPhase("waiting");
-    // Simulate partner response
-    setTimeout(() => {
-      const partnerSparked = choice === "spark" && Math.random() > 0.35;
-      setPhase(partnerSparked ? "mutual-spark" : "no-spark");
-    }, 2200);
-  }, []);
 
-  const handleSafeExit = useCallback(() => {
+    const updateField = myRole === "caller" ? "caller_decision" : "callee_decision";
+    const { error } = await supabase
+      .from("calls")
+      .update({ [updateField]: choice })
+      .eq("id", callId);
+
+    if (error) {
+      toast.error("Failed to record choice. Please try again.");
+      setPhase("deciding");
+      return;
+    }
+
+    // Leave Agora after deciding
+    await leave();
+  }, [callId, myRole, leave]);
+
+  // Subscribe to call updates for partner's decision
+  useEffect(() => {
+    if (phase !== "waiting" || !callId) return;
+
+    // First check if both decisions already exist
+    const checkDecisions = async () => {
+      const { data } = await supabase
+        .from("calls")
+        .select("caller_decision, callee_decision, is_mutual_spark")
+        .eq("id", callId)
+        .single();
+      if (data?.caller_decision && data?.callee_decision) {
+        setPhase(data.is_mutual_spark ? "mutual-spark" : "no-spark");
+      }
+    };
+    checkDecisions();
+
+    const channel = supabase
+      .channel(`call-${callId}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "calls",
+        filter: `id=eq.${callId}`,
+      }, (payload) => {
+        const row = payload.new as any;
+        if (row.caller_decision && row.callee_decision) {
+          setPhase(row.is_mutual_spark ? "mutual-spark" : "no-spark");
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [phase, callId]);
+
+  // Handle safe exit
+  const handleSafeExit = useCallback(async () => {
     setExitOpen(false);
+    await leave();
     navigate("/lobby");
-  }, [navigate]);
+  }, [navigate, leave]);
 
-  const isMutual = myChoice === "spark" && phase !== "no-spark";
+  // Handle report
+  const handleReport = useCallback(async (reason: string) => {
+    if (!user || !partnerId || !callId) return;
+    await supabase.from("reports").insert({
+      reporter_id: user.id,
+      reported_user_id: partnerId,
+      call_id: callId,
+      reason,
+    });
+    toast.success("Report submitted. Thank you for keeping Verity safe.");
+    setReportOpen(false);
+  }, [user, partnerId, callId]);
+
+  // Navigate to spark after mutual spark
+  const handleMutualSparkContinue = useCallback(async () => {
+    if (!callId) {
+      navigate("/sparks");
+      return;
+    }
+    // Find the spark created by the trigger
+    const { data: spark } = await supabase
+      .from("sparks")
+      .select("id")
+      .eq("call_id", callId)
+      .single();
+    if (spark) {
+      navigate(`/chat/${spark.id}`);
+    } else {
+      navigate("/sparks");
+    }
+  }, [callId, navigate]);
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
       <AnimatePresence mode="wait">
-        {/* ═══ CONNECTING ═══ */}
+        {/* LOADING */}
+        {phase === "loading" && (
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="flex-1 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </motion.div>
+        )}
+
+        {/* CONNECTING */}
         {phase === "connecting" && (
-          <motion.div
-            key="connecting"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-center gap-7 px-6"
-          >
-            <motion.div
-              animate={{ scale: [1, 1.08, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="w-20 h-20 rounded-full border-2 border-primary/25 flex items-center justify-center"
-            >
+          <motion.div key="connecting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="flex-1 flex flex-col items-center justify-center gap-7 px-6">
+            <motion.div animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 2, repeat: Infinity }}
+              className="w-20 h-20 rounded-full border-2 border-primary/25 flex items-center justify-center">
               <Phone className="w-7 h-7 text-primary" />
             </motion.div>
             <div className="text-center">
-              <p className="font-serif text-2xl text-foreground mb-2">
-                Connecting you now…
-              </p>
+              <p className="font-serif text-2xl text-foreground mb-2">Connecting you now…</p>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
                 Your call is fully anonymous. Relax — just be yourself.
               </p>
             </div>
             <div className="flex gap-1.5">
               {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  animate={{ opacity: [0.25, 1, 0.25] }}
+                <motion.div key={i} animate={{ opacity: [0.25, 1, 0.25] }}
                   transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
-                  className="w-2 h-2 rounded-full bg-primary"
-                />
+                  className="w-2 h-2 rounded-full bg-primary" />
               ))}
             </div>
+            {agoraError && (
+              <p className="text-xs text-destructive">{agoraError}</p>
+            )}
           </motion.div>
         )}
 
-        {/* ═══ LIVE CALL / DECIDING ═══ */}
+        {/* LIVE CALL / DECIDING */}
         {(phase === "live" || phase === "deciding") && (
-          <motion.div
-            key="live"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col"
-          >
-            {/* ── Top bar ── */}
+          <motion.div key="live" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="flex-1 flex flex-col">
+            {/* Top bar */}
             <div className="relative z-10 flex items-center justify-between px-5 pt-4 pb-2">
-              {/* Left: safety + connection */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
                   <Shield className="w-3 h-3 text-primary/50" />
@@ -133,100 +284,76 @@ const LiveCall = () => {
                 </div>
                 <ConnectionIndicator quality="excellent" />
               </div>
-
-              {/* Centre: countdown */}
               <div className="absolute left-1/2 -translate-x-1/2 top-2">
                 <CallCountdown seconds={secondsLeft} total={CALL_DURATION} />
               </div>
-
-              {/* Right: Guardian + Safe Exit */}
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setGuardianOpen(true)}
+                <button onClick={() => setReportOpen(true)}
                   className="w-9 h-9 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
-                  aria-label="Guardian Net"
-                >
+                  aria-label="Report">
+                  <Flag className="w-4 h-4" />
+                </button>
+                <button onClick={() => setGuardianOpen(true)}
+                  className="w-9 h-9 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+                  aria-label="Guardian Net">
                   <UserPlus className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={() => setExitOpen(true)}
+                <button onClick={() => setExitOpen(true)}
                   className="w-9 h-9 rounded-full bg-destructive/10 flex items-center justify-center text-destructive/70 hover:text-destructive hover:bg-destructive/20 transition-all"
-                  aria-label="Safe Exit"
-                >
+                  aria-label="Safe Exit">
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* ── Video area ── */}
-            <VideoArea />
+            <VideoArea
+              localVideoRef={localVideoRef as React.RefObject<HTMLDivElement>}
+              remoteVideoRef={remoteVideoRef as React.RefObject<HTMLDivElement>}
+              isRemoteConnected={isRemoteConnected}
+            />
 
-            {/* ── Bottom controls ── */}
             <div className="relative z-10 px-6 pb-8 pt-4">
               {phase === "deciding" ? (
                 <SparkPassButtons onChoice={handleChoice} elapsed={elapsed} />
               ) : (
                 <div className="flex items-center justify-center">
-                  <CallControls
-                    micOn={micOn}
-                    cameraOn={cameraOn}
-                    onToggleMic={() => setMicOn((v) => !v)}
-                    onToggleCamera={() => setCameraOn((v) => !v)}
-                  />
+                  <CallControls micOn={micOn} cameraOn={cameraOn}
+                    onToggleMic={toggleMic} onToggleCamera={toggleCamera} />
                 </div>
               )}
             </div>
           </motion.div>
         )}
 
-        {/* ═══ WAITING ═══ */}
+        {/* WAITING */}
         {phase === "waiting" && (
-          <motion.div
-            key="waiting"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-center gap-5 px-6"
-          >
+          <motion.div key="waiting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="flex-1 flex flex-col items-center justify-center gap-5 px-6">
             <p className="font-serif text-2xl text-foreground">
               {myChoice === "spark" ? "Spark sent." : "Choice recorded."}
             </p>
-            <p className="text-sm text-muted-foreground">
-              Waiting for their decision…
-            </p>
+            <p className="text-sm text-muted-foreground">Waiting for their decision…</p>
             <div className="flex gap-1.5">
               {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  animate={{ opacity: [0.25, 1, 0.25] }}
+                <motion.div key={i} animate={{ opacity: [0.25, 1, 0.25] }}
                   transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
-                  className="w-2 h-2 rounded-full bg-primary"
-                />
+                  className="w-2 h-2 rounded-full bg-primary" />
               ))}
             </div>
           </motion.div>
         )}
 
-        {/* ═══ MUTUAL SPARK ═══ */}
+        {/* MUTUAL SPARK */}
         {phase === "mutual-spark" && (
-          <MutualSparkReveal onContinue={() => setPhase("reflection")} />
+          <MutualSparkReveal onContinue={handleMutualSparkContinue} />
         )}
 
-        {/* ═══ NO SPARK ═══ */}
+        {/* NO SPARK */}
         {phase === "no-spark" && (
-          <motion.div
-            key="no-spark"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-center gap-6 px-6"
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.6 }}
-              className="text-center"
-            >
+          <motion.div key="no-spark" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={{ duration: 0.6 }}
+              className="text-center">
               <p className="font-serif text-2xl md:text-3xl text-foreground mb-3">
                 Thank you for your honesty.
               </p>
@@ -234,85 +361,56 @@ const LiveCall = () => {
                 Neither party knows who chose what. That's the Verity promise — dignity, always.
               </p>
             </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
-              className="flex flex-col items-center gap-3"
-            >
-              <button
-                onClick={() => setPhase("reflection")}
-                className="text-sm text-primary hover:text-primary/80 transition-colors"
-              >
-                View your Spark Reflection
-              </button>
-              <button
-                onClick={() => navigate("/lobby")}
-                className="text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-              >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
+              className="flex flex-col items-center gap-3">
+              <button onClick={() => navigate("/lobby")}
+                className="text-sm text-primary hover:text-primary/80 transition-colors">
                 Return to lobby
               </button>
             </motion.div>
           </motion.div>
         )}
 
-        {/* ═══ SPARK REFLECTION ═══ */}
-        {phase === "reflection" && (
-          <SparkReflection
-            wasMutual={isMutual}
-            onContinue={() => {
-              setPhase(isMutual ? "voice-intro" : "complete");
-            }}
-          />
-        )}
-
-        {/* ═══ VOICE INTRO ═══ */}
-        {phase === "voice-intro" && (
-          <VoiceIntro onComplete={() => setPhase("complete")} />
-        )}
-
-        {/* ═══ COMPLETE ═══ */}
+        {/* COMPLETE */}
         {phase === "complete" && (
-          <motion.div
-            key="complete"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex-1 flex flex-col items-center justify-center gap-6 px-6"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.8 }}
-              className="text-center"
-            >
-              <p className="font-serif text-2xl md:text-3xl text-foreground mb-3">
-                {isMutual ? "Connection made." : "Until next time."}
-              </p>
+          <motion.div key="complete" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
+            <div className="text-center">
+              <p className="font-serif text-2xl md:text-3xl text-foreground mb-3">Until next time.</p>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                {isMutual
-                  ? "Chat is now unlocked. You'll find them in your Sparks."
-                  : "Every call teaches you something about what you're looking for."}
+                Every call teaches you something about what you're looking for.
               </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-            >
-              <button
-                onClick={() => navigate("/lobby")}
-                className="text-sm text-primary hover:text-primary/80 transition-colors"
-              >
-                Back to lobby
-              </button>
-            </motion.div>
+            </div>
+            <button onClick={() => navigate("/lobby")}
+              className="text-sm text-primary hover:text-primary/80 transition-colors">
+              Back to lobby
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Modals */}
+      {/* Report modal */}
+      {reportOpen && (
+        <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur flex items-center justify-center px-6">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-serif text-lg text-foreground mb-4">Report this person</h3>
+            <div className="space-y-2 mb-6">
+              {["Harassment", "Sexual content", "Scam", "Underage concern", "Other"].map((reason) => (
+                <button key={reason} onClick={() => handleReport(reason)}
+                  className="w-full text-left px-4 py-3 rounded-lg border border-border text-sm text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all">
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setReportOpen(false)}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors w-full text-center">
+              Cancel
+            </button>
+          </motion.div>
+        </div>
+      )}
+
       <GuardianNet open={guardianOpen} onClose={() => setGuardianOpen(false)} />
       <SafeExitModal open={exitOpen} onClose={() => setExitOpen(false)} onConfirm={handleSafeExit} />
     </div>

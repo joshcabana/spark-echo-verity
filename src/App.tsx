@@ -32,7 +32,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/lobby" element={<ProtectedRoute><Lobby /></ProtectedRoute>} />
-            <Route path="/call" element={<ProtectedRoute><LiveCall /></ProtectedRoute>} />
+            <Route path="/call/:callId" element={<ProtectedRoute><LiveCall /></ProtectedRoute>} />
             <Route path="/sparks" element={<ProtectedRoute><SparkHistory /></ProtectedRoute>} />
             <Route path="/chat/:sparkId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
             <Route path="/tokens" element={<ProtectedRoute><TokenShop /></ProtectedRoute>} />

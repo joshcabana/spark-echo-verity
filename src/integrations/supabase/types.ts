@@ -207,6 +207,8 @@ export type Database = {
       }
       matchmaking_queue: {
         Row: {
+          call_id: string | null
+          drop_id: string | null
           id: string
           joined_at: string
           matched_at: string | null
@@ -215,6 +217,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          call_id?: string | null
+          drop_id?: string | null
           id?: string
           joined_at?: string
           matched_at?: string | null
@@ -223,6 +227,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          call_id?: string | null
+          drop_id?: string | null
           id?: string
           joined_at?: string
           matched_at?: string | null
@@ -231,6 +237,20 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "matchmaking_queue_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matchmaking_queue_drop_id_fkey"
+            columns: ["drop_id"]
+            isOneToOne: false
+            referencedRelation: "drops"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "matchmaking_queue_room_id_fkey"
             columns: ["room_id"]
@@ -673,6 +693,27 @@ export type Database = {
           reason?: string
           stripe_session_id?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_blocks: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+          id?: string
         }
         Relationships: []
       }
