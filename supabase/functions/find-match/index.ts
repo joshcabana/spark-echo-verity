@@ -76,19 +76,26 @@ serve(async (req) => {
     if (candidates && candidates.length > 0) {
       const candidateIds = candidates.map((c: any) => c.user_id);
 
-      // Get blocks in both directions
-      const { data: blocks } = await admin
+      // Get blocks where current user blocked candidates
+      const { data: blocksOutgoing } = await admin
         .from("user_blocks")
-        .select("blocker_id, blocked_id")
-        .or(
-          `and(blocker_id.eq.${user.id},blocked_id.in.(${candidateIds.join(",")})),and(blocked_id.eq.${user.id},blocker_id.in.(${candidateIds.join(",")}))`
-        );
+        .select("blocked_id")
+        .eq("blocker_id", user.id)
+        .in("blocked_id", candidateIds);
+
+      // Get blocks where candidates blocked current user
+      const { data: blocksIncoming } = await admin
+        .from("user_blocks")
+        .select("blocker_id")
+        .eq("blocked_id", user.id)
+        .in("blocker_id", candidateIds);
 
       const blockedSet = new Set<string>();
-      if (blocks) {
-        for (const b of blocks) {
-          blockedSet.add(b.blocker_id === user.id ? b.blocked_id : b.blocker_id);
-        }
+      if (blocksOutgoing) {
+        for (const b of blocksOutgoing) blockedSet.add(b.blocked_id);
+      }
+      if (blocksIncoming) {
+        for (const b of blocksIncoming) blockedSet.add(b.blocker_id);
       }
 
       matchedCandidate = candidates.find((c: any) => !blockedSet.has(c.user_id));

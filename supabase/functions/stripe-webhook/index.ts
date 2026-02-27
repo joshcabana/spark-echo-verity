@@ -6,23 +6,32 @@ serve(async (req) => {
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 
-  if (!stripeKey) {
-    return new Response("Stripe not configured", { status: 500 });
+  if (!stripeKey || !webhookSecret) {
+    return new Response(JSON.stringify({ error: "Service not configured" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
   const body = await req.text();
   const signature = req.headers.get("stripe-signature");
 
+  if (!signature) {
+    return new Response(JSON.stringify({ error: "Missing signature" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   let event;
   try {
-    if (webhookSecret && signature) {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } else {
-      event = JSON.parse(body);
-    }
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
-    return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+    return new Response(JSON.stringify({ error: "Invalid signature" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const supabase = createClient(
