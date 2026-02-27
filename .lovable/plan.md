@@ -1,66 +1,93 @@
 
-# Security Hardening Plan — Status: ✅ All Complete
 
-## Summary
+# Comprehensive Project Examination — Spark Echo Verity
 
-All 5 security findings identified during the pre-launch audit have been resolved. The implementation was completed as part of the "Enhance security and infra" commit.
+## Primary Objectives and Intended Outcomes
 
----
+Verity is a verified, anonymous speed-dating platform that replaces swipe-based dating with scheduled 45-second video "Drops" and a mutual-spark reveal mechanic. Six core objectives:
 
-## 1. `create-checkout` — Auth + Price Allowlist + URL Allowlist (HIGH) ✅ Done
+1. **Authentic first impressions** — live voice/video instead of curated profiles
+2. **Zero ghosting by design** — mutual-spark gate; no rejection signals ever sent
+3. **Safety first** — AI moderation, phone+selfie verification, safety pledge, user blocking
+4. **Privacy by default** — anonymous until mutual spark; call content never stored
+5. **Radical transparency** — public safety/moderation stats on a dedicated page
+6. **Intention over addiction** — no infinite scroll, no streaks, no dopamine loops
 
-**File:** `supabase/functions/create-checkout/index.ts` — full rewrite
+## Strategic Plan, Methodology, and Milestones
 
-- ✅ JWT authentication added (parses Authorization header, calls `getUser`)
-- ✅ User's email derived from the authenticated session (not from request body)
-- ✅ Hardcoded `PRICE_MAP` allowlist — invalid price IDs rejected with 400
-- ✅ `success_url` / `cancel_url` built server-side from `ALLOWED_ORIGINS`; no arbitrary client URLs accepted
-- ✅ `customer_email` removed from request body
+**Tech Stack:** React 18 + Vite + TypeScript + Tailwind/shadcn-ui (frontend), Lovable Cloud / Supabase (backend), Agora RTC (video), Stripe (payments), Framer Motion (animations).
 
-## 2. `customer-portal` — Open Redirect Fix (HIGH) ✅ Done
+**Timeline (relative to current date Feb 27, 2026):**
 
-**File:** `supabase/functions/customer-portal/index.ts` — lines 73-76
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 — Core Platform | Done | Auth, onboarding, lobby, drops, RSVP, matchmaking, 45s video calls, spark/pass, chat |
+| Phase 2 — Safety & Infra | Done | AI moderation scaffold, user blocking, selfie storage, admin dashboard, transparency page, appeals |
+| Phase 3 — Payments | Done | Token shop, Stripe checkout, subscriptions, customer portal, webhook handler |
+| Phase 4 — Innovations | Roadmap | Spark Reflection, Voice Intro, Guardian Net, Chemistry Replay, Friendfluence Drops |
+| Security Hardening | Done | 5 critical fixes across edge functions + DB migration for idempotency |
 
-- ✅ `return_url` validated against `ALLOWED_ORIGINS`; falls back to `${ALLOWED_ORIGINS[0]}/tokens`
+## Current Progress
 
-## 3. `agora-token` — Real Token Generation + Generic Errors (MED/HIGH) ✅ Done
+### Completed
 
-**File:** `supabase/functions/agora-token/index.ts` — full rewrite
+- **19 database tables** with RLS enabled on all, appropriate policies for user-scoped, admin-scoped, and public data
+- **10 edge functions**: `find-match`, `agora-token`, `ai-moderate`, `admin-moderation`, `submit-appeal`, `spark-extend`, `create-checkout`, `customer-portal`, `check-subscription`, `stripe-webhook`
+- **12 pages**: Landing, Auth, Onboarding (8-step flow), Lobby, LiveCall, SparkHistory, Chat, TokenShop, Admin (5 sections), Transparency, Appeal, NotFound
+- **Security hardening complete**:
+  - `create-checkout`: JWT auth + price ID allowlist + server-side URL construction
+  - `customer-portal`: origin allowlist for return_url (no more open redirect)
+  - `agora-token`: real RTC token generation via `RtcTokenBuilder` with 10-min expiry
+  - `stripe-webhook`: idempotency via `stripe_processed_events` table + `stripe_customer_id` on profiles for deterministic lookup
+  - `ai-moderate`: auth-gated with call participation verification
+  - All edge functions return generic errors to clients; log details server-side
+- **Realtime subscriptions** for drops, RSVPs, calls, and messages
+- **Storage bucket** (`verifications`) with private access and user-scoped RLS for selfie uploads
 
-- ✅ Uses `npm:agora-token@2.0.4` with `RtcTokenBuilder` and `RtcRole`
-- ✅ Real token generated with 10-minute expiry via `buildTokenWithUid`
-- ✅ Call-participation check: only verified call participants receive a token
-- ✅ Error handler uses generic `"An error occurred"` message; real error logged with `console.error`
+### In Progress / Known Gaps
 
-## 4. `stripe-webhook` — Idempotency + Customer ID Mapping (MED/HIGH) ✅ Done
+1. **AI moderation is a stub** — `ai-moderate` returns `Math.random() * 0.3` and never flags (score > 0.6 is unreachable). The Lobby footer still says "AI-moderated in real time" (line 237 of Lobby.tsx) even though line 179 was corrected to "Safety first". The Lovable AI key is now configured; wiring real moderation is the next logical step.
 
-**File:** `supabase/functions/stripe-webhook/index.ts` — significant rewrite  
-**Migration:** `20260227121650_809f5cc5-7272-4a9b-9512-bc15c53c4b76.sql`
+2. **Admin page uses entirely mock data** — All moderation queue items, appeals, analytics KPIs, charts, user lists, and alerts in `Admin.tsx` are hardcoded arrays (lines 21-55). None are wired to real database queries.
 
-- ✅ `stripe_processed_events` table created (primary key on `event_id`) for idempotency
-- ✅ Duplicate webhook events return `{ received: true }` immediately
-- ✅ `stripe_customer_id` column added to `profiles` with index
-- ✅ Profile lookup uses `stripe_customer_id` first; falls back to email lookup and stores ID for future calls
-- ✅ Entitlements derived from `PRICE_ENTITLEMENTS` map (consistent with `create-checkout` `PRICE_MAP`)
+3. **Transparency page likely uses static data** — needs verification, but the PROJECT_OVERVIEW noted this.
 
-## 5. `ai-moderate` — Remove False Safety Claim (HIGH integrity) ✅ Done
+4. **`stripe-webhook` email fallback is fragile** — `listUsers({ page: 1, perPage: 50 })` scans only the first 50 users by email. For >50 users this silently fails to find the match.
 
-**File:** `src/pages/Lobby.tsx` — line 179
+5. **Lobby.tsx line 237 inconsistency** — says "AI-moderated in real time" while line 179 correctly says "Safety first". These two claims contradict each other.
 
-- ✅ Changed from `"AI safety on"` to `"Safety first"` — accurate without implying real-time AI moderation that is not yet wired
+6. **`any` type usage** — widespread across Lobby.tsx (drops, rsvpCounts), AuthContext (profile), and edge function responses. Causes ESLint failures.
 
----
+7. **Bundle size** — Vite warns about >2.5 MB bundle; Admin and LiveCall should use dynamic imports.
 
-## Implementation Order (Completed)
+8. **No dedicated profile page** — BottomNav "Profile" goes to `/lobby`, user icon goes to `/tokens`. There is no `/profile` route.
 
-1. ✅ DB migration: `stripe_processed_events` table + `stripe_customer_id` on profiles
-2. ✅ `create-checkout` rewrite (auth + allowlist)
-3. ✅ `customer-portal` open redirect fix
-4. ✅ `agora-token` real token generation
-5. ✅ `stripe-webhook` idempotency + customer ID mapping
-6. ✅ Lobby.tsx copy fix
+## Challenges and Mitigations
 
-## Required Secrets
+| Challenge | Status | Mitigation |
+|-----------|--------|------------|
+| Payment security (open redirects, unauthenticated checkout) | Resolved | JWT auth + price allowlist + origin allowlist on create-checkout and customer-portal |
+| Webhook idempotency (double-crediting) | Resolved | `stripe_processed_events` table with PK on event_id |
+| Agora stub tokens | Resolved | Real `RtcTokenBuilder.buildTokenWithUid` with 10-min expiry |
+| AI moderation stub | Open | Function is auth-gated but returns random safe scores; needs real provider integration |
+| Admin mock data | Open | All admin sections use hardcoded arrays; need to wire to real DB queries |
+| User lookup fragility in webhook | Open | `listUsers` only checks first 50; should use Supabase admin API with email filter or store mapping at signup |
+| Bundle size (>2.5 MB) | Open | Needs code-splitting with `React.lazy` for heavy routes |
+| TypeScript `any` usage | Open | Needs typed Supabase response models throughout |
 
-No new secrets needed — `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` all already configured.
+## Adjustments Made
+
+1. Security hardening was promoted from a later sprint to immediate — all 5 critical findings resolved before any public launch
+2. "AI safety on" claim changed to "Safety first" in the lobby header (though the footer text still claims real-time AI moderation)
+3. `stripe_customer_id` mapping added to profiles for deterministic webhook processing instead of email-only lookup
+4. Customer portal rewritten with JWT auth (previously accepted email from request body)
+
+## Recommended Next Steps (Priority Order)
+
+1. **Fix Lobby.tsx line 237** — change "AI-moderated in real time" to match the "Safety first" claim
+2. **Wire Admin dashboard to real data** — replace mock arrays with Supabase queries for moderation_flags, appeals, profiles, and platform_stats
+3. **Implement real AI moderation** — use the configured Lovable AI key to power `ai-moderate` with actual content analysis
+4. **Fix webhook user lookup** — use Supabase admin `listUsers` with email filter parameter instead of scanning first 50
+5. **Add code splitting** — `React.lazy` for Admin, LiveCall, TokenShop routes
+6. **Create /profile page** — dedicated profile management with display name, avatar, verification status
 
