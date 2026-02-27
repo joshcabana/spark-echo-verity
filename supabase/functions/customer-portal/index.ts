@@ -7,13 +7,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ALLOWED_ORIGINS = [
+  "https://spark-echo-verity.lovable.app",
+  "https://id-preview--a81e90ba-a208-41e2-bf07-a3adfb94bfcb.lovable.app",
+];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Require authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -46,7 +50,6 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
-    // Use the authenticated user's email instead of accepting it from the request
     const customerEmail = user.email;
     if (!customerEmail) {
       return new Response(
@@ -67,9 +70,10 @@ serve(async (req) => {
       );
     }
 
-    const safeReturnUrl = typeof return_url === "string" && return_url.startsWith("http")
+    // Allowlist-based return URL validation
+    const safeReturnUrl = (typeof return_url === "string" && ALLOWED_ORIGINS.some(o => return_url.startsWith(o)))
       ? return_url
-      : `${req.headers.get("origin") || "https://spark-echo-verity.lovable.app"}/tokens`;
+      : `${ALLOWED_ORIGINS[0]}/tokens`;
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customer.id,

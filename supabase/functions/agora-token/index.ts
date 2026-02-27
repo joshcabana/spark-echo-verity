@@ -1,14 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { RtcTokenBuilder, RtcRole } from "npm:agora-token@2.0.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Agora token generation helpers
-// Since we can't use the npm package directly in Deno, we'll use the REST approach
-// or generate a basic token. For production, use the Agora token builder.
 
 function generateUid(): number {
   return Math.floor(Math.random() * 100000) + 1;
@@ -21,7 +18,12 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing auth");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -31,10 +33,21 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !user) throw new Error("Unauthorized");
+    if (userErr || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { call_id, channel } = await req.json();
-    if (!call_id || !channel) throw new Error("call_id and channel required");
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!call_id || !uuidRegex.test(call_id) || !channel || typeof channel !== "string" || channel.length > 255) {
+      return new Response(
+        JSON.stringify({ error: "Invalid request" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Verify user is participant in this call
     const admin = createClient(supabaseUrl, serviceKey);
@@ -44,18 +57,27 @@ serve(async (req) => {
       .eq("id", call_id)
       .single();
 
-    if (callErr || !call) throw new Error("Call not found");
+    if (callErr || !call) {
+      return new Response(
+        JSON.stringify({ error: "Invalid request" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     if (call.caller_id !== user.id && call.callee_id !== user.id) {
-      throw new Error("Not a participant in this call");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
     if (call.agora_channel !== channel) {
-      throw new Error("Channel mismatch");
+      return new Response(
+        JSON.stringify({ error: "Invalid request" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const appId = Deno.env.get("AGORA_APP_ID");
     const appCertificate = Deno.env.get("AGORA_APP_CERTIFICATE");
-
-    const uid = generateUid();
 
     if (!appId || !appCertificate) {
       return new Response(
@@ -64,26 +86,30 @@ serve(async (req) => {
       );
     }
 
-    // For production with App Certificate, we need to generate a proper token.
-    // Using a temporary token approach: if no certificate logic available,
-    // return appId + uid and let client join with null token (works when no certificate is enabled)
-    // When certificate IS set, the client needs a real token.
-    // For MVP, we return the appId and let the client handle it.
-    // TODO: Implement proper RtcTokenBuilder when agora-token Deno package is available
+    const uid = generateUid();
+    const expirationTimeInSeconds = 600; // 10 minutes
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appId,
+      appCertificate,
+      channel,
+      uid,
+      RtcRole.PUBLISHER,
+      privilegeExpiredTs,
+      privilegeExpiredTs
+    );
 
     return new Response(
-      JSON.stringify({
-        token: null, // null token works with Agora when App Certificate is not enforced
-        appId,
-        uid,
-        channel,
-      }),
+      JSON.stringify({ token, appId, uid, channel }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
+  } catch (error) {
+    console.error("agora-token error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: "An error occurred" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

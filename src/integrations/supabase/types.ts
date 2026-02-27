@@ -437,6 +437,7 @@ export type Database = {
           handle: string | null
           id: string
           is_active: boolean | null
+          stripe_customer_id: string | null
           subscription_expires_at: string | null
           subscription_tier:
             | Database["public"]["Enums"]["subscription_tier"]
@@ -457,6 +458,7 @@ export type Database = {
           handle?: string | null
           id?: string
           is_active?: boolean | null
+          stripe_customer_id?: string | null
           subscription_expires_at?: string | null
           subscription_tier?:
             | Database["public"]["Enums"]["subscription_tier"]
@@ -477,6 +479,7 @@ export type Database = {
           handle?: string | null
           id?: string
           is_active?: boolean | null
+          stripe_customer_id?: string | null
           subscription_expires_at?: string | null
           subscription_tier?:
             | Database["public"]["Enums"]["subscription_tier"]
@@ -668,6 +671,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      stripe_processed_events: {
+        Row: {
+          event_id: string
+          processed_at: string
+        }
+        Insert: {
+          event_id: string
+          processed_at?: string
+        }
+        Update: {
+          event_id?: string
+          processed_at?: string
+        }
+        Relationships: []
       }
       token_transactions: {
         Row: {
