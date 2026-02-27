@@ -63,9 +63,9 @@ const HeroSection = () => {
           transition={{ duration: 0.8, delay: 1 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <Link to="/auth">
+          <Link to="/onboarding">
             <Button variant="gold" size="xl" className="group">
-              Join the circle
+              Start meeting real people
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </Link>

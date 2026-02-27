@@ -1,46 +1,129 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Shield, User } from "lucide-react";
 import { Link } from "react-router-dom";
-import { rooms, getSuggestedRoom, type Room } from "@/data/rooms";
-import LobbyRoomCard from "@/components/lobby/LobbyRoomCard";
-import LobbyHeader from "@/components/lobby/LobbyHeader";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import DropCard from "@/components/lobby/DropCard";
+import DropsFilter, { type FilterOption } from "@/components/lobby/DropsFilter";
 import MatchmakingOverlay from "@/components/lobby/MatchmakingOverlay";
 import BottomNav from "@/components/BottomNav";
+import { isToday, isThisWeek } from "date-fns";
 
 const Lobby = () => {
-  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-  const [matchmaking, setMatchmaking] = useState<{ active: boolean; roomName: string }>({
-    active: false,
-    roomName: "",
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [filter, setFilter] = useState<FilterOption>("all");
+  const [matchmaking, setMatchmaking] = useState({ active: false, roomName: "" });
+
+  // Fetch drops
+  const { data: drops = [] } = useQuery({
+    queryKey: ["drops"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("drops")
+        .select("*, rooms(name)")
+        .in("status", ["upcoming", "live"])
+        .order("scheduled_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
   });
-  const suggested = getSuggestedRoom();
-  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const handleSelect = useCallback((roomId: string) => {
-    setSelectedRoom((prev) => (prev === roomId ? null : roomId));
-  }, []);
+  // Fetch user RSVPs
+  const { data: rsvps = [] } = useQuery({
+    queryKey: ["my-rsvps", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("drop_rsvps")
+        .select("drop_id")
+        .eq("user_id", user.id);
+      if (error) throw error;
+      return data.map((r) => r.drop_id);
+    },
+    enabled: !!user,
+  });
 
-  const handleSuggestionClick = useCallback(() => {
-    setSelectedRoom(suggested.id);
-    // Scroll the suggested card into view
-    const el = cardRefs.current.get(suggested.id);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [suggested.id]);
+  // Fetch RSVP counts
+  const { data: rsvpCounts = {} } = useQuery({
+    queryKey: ["rsvp-counts", drops.map((d: any) => d.id).join(",")],
+    queryFn: async () => {
+      if (drops.length === 0) return {};
+      const counts: Record<string, number> = {};
+      for (const drop of drops) {
+        const { count } = await supabase
+          .from("drop_rsvps")
+          .select("*", { count: "exact", head: true })
+          .eq("drop_id", (drop as any).id);
+        counts[(drop as any).id] = count ?? 0;
+      }
+      return counts;
+    },
+    enabled: drops.length > 0,
+  });
 
-  const handleEnterRoom = useCallback((room: Room) => {
-    setMatchmaking({ active: true, roomName: room.name });
-  }, []);
+  // RSVP mutation
+  const rsvpMutation = useMutation({
+    mutationFn: async (dropId: string) => {
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from("drop_rsvps")
+        .insert({ drop_id: dropId, user_id: user.id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-rsvps"] });
+      queryClient.invalidateQueries({ queryKey: ["rsvp-counts"] });
+    },
+  });
 
-  const handleCancelMatchmaking = useCallback(() => {
-    setMatchmaking({ active: false, roomName: "" });
-  }, []);
+  // Cancel RSVP mutation
+  const cancelMutation = useMutation({
+    mutationFn: async (dropId: string) => {
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from("drop_rsvps")
+        .delete()
+        .eq("drop_id", dropId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-rsvps"] });
+      queryClient.invalidateQueries({ queryKey: ["rsvp-counts"] });
+    },
+  });
+
+  // Realtime for new drops/RSVPs
+  useEffect(() => {
+    const channel = supabase
+      .channel("drops-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "drops" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["drops"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "drop_rsvps" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["rsvp-counts"] });
+        queryClient.invalidateQueries({ queryKey: ["my-rsvps"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
+  // Filter drops
+  const filtered = drops.filter((d: any) => {
+    if (filter === "today") return isToday(new Date(d.scheduled_at));
+    if (filter === "week") return isThisWeek(new Date(d.scheduled_at));
+    if (filter === "my-rsvps") return rsvps.includes(d.id);
+    return true;
+  });
+
+  // Next RSVP'd drop
+  const nextRsvp = drops.find((d: any) => rsvps.includes(d.id));
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Top bar */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="container max-w-2xl mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -60,33 +143,65 @@ const Lobby = () => {
       </header>
 
       <main className="container max-w-2xl mx-auto px-5 pt-8">
-        <LobbyHeader
-          suggestedRoomName={suggested.name}
-          onSuggestionClick={handleSuggestionClick}
-        />
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="mb-6"
+        >
+          <h1 className="font-serif text-3xl md:text-4xl text-foreground mb-2">
+            Upcoming Drops
+          </h1>
+          <p className="text-muted-foreground max-w-lg leading-relaxed text-sm">
+            Scheduled sessions by room. RSVP to reserve your spot — you'll be matched when the Drop goes live.
+          </p>
+        </motion.div>
 
-        {/* Room cards */}
-        <div className="space-y-5">
-          {rooms.map((room, i) => (
-            <div
-              key={room.id}
-              ref={(el) => {
-                if (el) cardRefs.current.set(room.id, el);
-              }}
-            >
-              <LobbyRoomCard
-                room={room}
-                index={i}
-                isSelected={selectedRoom === room.id}
-                isSuggested={suggested.id === room.id}
-                onSelect={handleSelect}
-                onEnter={handleEnterRoom}
-              />
-            </div>
+        {/* Filters */}
+        <div className="mb-6">
+          <DropsFilter active={filter} onChange={setFilter} />
+        </div>
+
+        {/* Next RSVP hero card */}
+        {nextRsvp && filter !== "my-rsvps" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 rounded-2xl border border-primary/20 bg-primary/5"
+          >
+            <span className="text-[10px] uppercase tracking-luxury text-primary block mb-1">
+              Your next Drop
+            </span>
+            <p className="font-serif text-foreground">{(nextRsvp as any).title}</p>
+          </motion.div>
+        )}
+
+        {/* Drop cards */}
+        <div className="space-y-4">
+          {filtered.map((drop: any, i: number) => (
+            <DropCard
+              key={drop.id}
+              drop={drop}
+              rsvpCount={(rsvpCounts as Record<string, number>)[drop.id] ?? 0}
+              isRsvpd={rsvps.includes(drop.id)}
+              onRsvp={(id) => rsvpMutation.mutate(id)}
+              onCancel={(id) => cancelMutation.mutate(id)}
+              index={i}
+            />
           ))}
         </div>
 
-        {/* Footer note */}
+        {filtered.length === 0 && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center text-muted-foreground py-16 text-sm"
+          >
+            {filter === "my-rsvps" ? "You haven't RSVP'd to any Drops yet." : "No Drops scheduled — check back soon."}
+          </motion.p>
+        )}
+
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -99,11 +214,10 @@ const Lobby = () => {
 
       <BottomNav activeTab="go-live" />
 
-      {/* Matchmaking overlay */}
       <MatchmakingOverlay
         open={matchmaking.active}
         roomName={matchmaking.roomName}
-        onCancel={handleCancelMatchmaking}
+        onCancel={() => setMatchmaking({ active: false, roomName: "" })}
       />
     </div>
   );

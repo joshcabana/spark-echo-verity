@@ -117,6 +117,94 @@ export type Database = {
           },
         ]
       }
+      drop_rsvps: {
+        Row: {
+          checked_in: boolean
+          drop_id: string
+          friend_invite_code: string | null
+          id: string
+          rsvp_at: string
+          user_id: string
+        }
+        Insert: {
+          checked_in?: boolean
+          drop_id: string
+          friend_invite_code?: string | null
+          id?: string
+          rsvp_at?: string
+          user_id: string
+        }
+        Update: {
+          checked_in?: boolean
+          drop_id?: string
+          friend_invite_code?: string | null
+          id?: string
+          rsvp_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drop_rsvps_drop_id_fkey"
+            columns: ["drop_id"]
+            isOneToOne: false
+            referencedRelation: "drops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drops: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          id: string
+          is_friendfluence: boolean
+          max_capacity: number
+          region: string
+          room_id: string
+          scheduled_at: string
+          status: string
+          timezone: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_friendfluence?: boolean
+          max_capacity?: number
+          region?: string
+          room_id: string
+          scheduled_at: string
+          status?: string
+          timezone?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_friendfluence?: boolean
+          max_capacity?: number
+          region?: string
+          room_id?: string
+          scheduled_at?: string
+          status?: string
+          timezone?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drops_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matchmaking_queue: {
         Row: {
           id: string
@@ -189,6 +277,41 @@ export type Database = {
             columns: ["spark_id"]
             isOneToOne: false
             referencedRelation: "sparks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      moderation_events: {
+        Row: {
+          action_taken: string | null
+          call_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          risk_score: number | null
+        }
+        Insert: {
+          action_taken?: string | null
+          call_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          risk_score?: number | null
+        }
+        Update: {
+          action_taken?: string | null
+          call_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          risk_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_events_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
             referencedColumns: ["id"]
           },
         ]
@@ -345,6 +468,80 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          buffer_url: string | null
+          call_id: string | null
+          created_at: string
+          id: string
+          reason: string
+          reported_user_id: string
+          reporter_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          buffer_url?: string | null
+          call_id?: string | null
+          created_at?: string
+          id?: string
+          reason: string
+          reported_user_id: string
+          reporter_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          buffer_url?: string | null
+          call_id?: string | null
+          created_at?: string
+          id?: string
+          reason?: string
+          reported_user_id?: string
+          reporter_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           active_users: number | null
@@ -500,11 +697,54 @@ export type Database = {
         }
         Relationships: []
       }
+      user_trust: {
+        Row: {
+          created_at: string
+          dob: string | null
+          id: string
+          onboarding_complete: boolean
+          onboarding_step: number
+          phone_verified: boolean
+          preferences: Json | null
+          safety_pledge_accepted: boolean
+          selfie_verified: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dob?: string | null
+          id?: string
+          onboarding_complete?: boolean
+          onboarding_step?: number
+          phone_verified?: boolean
+          preferences?: Json | null
+          safety_pledge_accepted?: boolean
+          selfie_verified?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dob?: string | null
+          id?: string
+          onboarding_complete?: boolean
+          onboarding_step?: number
+          phone_verified?: boolean
+          preferences?: Json | null
+          safety_pledge_accepted?: boolean
+          selfie_verified?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_drop_rsvp_count: { Args: { _drop_id: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

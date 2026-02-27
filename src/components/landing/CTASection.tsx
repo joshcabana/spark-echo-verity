@@ -20,9 +20,9 @@ const CTASection = () => {
           <p className="text-muted-foreground text-lg mb-10 max-w-xl mx-auto">
             Verity is invite-only and verification-required. We're not building the biggest platform — just the most honest one.
           </p>
-          <Link to="/auth">
+          <Link to="/onboarding">
             <Button variant="gold" size="xl" className="group">
-              Join the circle
+              Start meeting real people
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </Link>

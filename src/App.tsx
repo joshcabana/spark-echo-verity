@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
+import Onboarding from "./pages/Onboarding";
 import Lobby from "./pages/Lobby";
 import LiveCall from "./pages/LiveCall";
 import SparkHistory from "./pages/SparkHistory";
@@ -29,6 +30,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/lobby" element={<ProtectedRoute><Lobby /></ProtectedRoute>} />
             <Route path="/call" element={<ProtectedRoute><LiveCall /></ProtectedRoute>} />
             <Route path="/sparks" element={<ProtectedRoute><SparkHistory /></ProtectedRoute>} />
