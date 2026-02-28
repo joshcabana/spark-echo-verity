@@ -1,47 +1,35 @@
 
 
-## Mobile Dark Mode Testing — Complete ✓
+## Ensure Light/Dark Mode Toggle Across All Pages
 
-All sections (Hero, Stats, Features, Innovations, CTA, Footer) render correctly on 375px in dark mode. No layout or contrast issues found.
+Currently, the `ThemeToggle` component is only rendered in the **landing page Navbar** (`src/components/landing/Navbar.tsx`). All authenticated pages (Lobby, SparkHistory, TokenShop, Profile) use `BottomNav` which has no theme toggle. The Auth, Onboarding, LiveCall, Chat, Transparency, Appeal, and Admin pages also lack any toggle.
 
-## Task 1: Add Spark Entrance Animation
+### Approach
 
-**File: `src/index.css`** — Add a `@keyframes sparkEntry` rule:
-```css
-@keyframes sparkEntry {
-  0% { transform: scale(0) rotate(-90deg); opacity: 0; }
-  100% { transform: scale(1) rotate(0deg); opacity: 1; }
-}
-```
+Rather than adding the toggle to every individual page, place it in two strategic locations:
 
-**File: `src/components/VerityLogo.tsx`** — Wrap both inline spark `<path>` elements (lines 79-82 and 108-111) in a `<g>` with the animation applied:
-```jsx
-<g style={{ transformOrigin: "38px 11px", animation: "sparkEntry 0.8s ease-out both" }}>
-  <path d="M38 4 ..." fill="#D4AF37" />
-</g>
-```
+1. **`src/components/BottomNav.tsx`** — Add a small `ThemeToggle` button integrated into the top-right corner of authenticated pages (or as an icon within the nav bar). This covers Lobby, SparkHistory, TokenShop, and Profile in one change.
 
-This applies to both the `icon` and `full` SVG variants.
+2. **`src/pages/Auth.tsx`** — Add `ThemeToggle` to the top-right area (next to the "Back" link).
 
-## Task 2: Generate Favicon
+3. **`src/pages/Onboarding.tsx`** — Add `ThemeToggle` to the header area.
 
-**Approach:** Create a backend function using Lovable AI image generation to produce a 512×512 PNG of the V + gold spark on a transparent/dark background, then save it as `public/favicon.png`.
+4. **`src/pages/LiveCall.tsx`** — Skip this page; adding a theme toggle during a live video call would be distracting and disruptive.
 
-**Simpler alternative (recommended):** Since SVG-to-PNG generation at build time isn't available, create a small static React utility page or simply use the existing icon SVG inline in a `<link>` tag. The most practical approach:
+5. **Standalone pages** (`Transparency.tsx`, `Appeal.tsx`, `Admin.tsx`, `Chat.tsx`) — Add `ThemeToggle` to their header/top-bar areas.
 
-**File: `index.html`** — Replace the current favicon with an inline SVG data URI generated from the icon-only VerityLogo SVG (V shape in charcoal + gold starburst). This gives a crisp favicon at any size without needing a separate image file.
+### Implementation Detail
 
-```html
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><path d='M4 6 C4 6 8 5 13 12 L24 38 L35 12 C40 5 44 6 44 6 L42 8 C42 8 39 8 36 14 L24 42 L12 14 C9 8 6 8 6 8 Z' fill='%23212121'/><path d='M38 4 L39.2 8.5 L43 6.5 L40.5 10 L45 10.8 L40.8 12.5 L44 15.5 L39.5 14 L39.8 18.5 L38 14.5 L36.2 18.5 L36.5 14 L32 15.5 L35.2 12.5 L31 10.8 L35.5 10 L33 6.5 L36.8 8.5 Z' fill='%23D4AF37'/></svg>">
-```
+For authenticated pages with `BottomNav`, the cleanest approach is to add a **floating `ThemeToggle`** as a shared layout element rather than modifying every page. A small persistent toggle button positioned `fixed top-4 right-4` will cover all authenticated routes.
 
-Keep the existing PNG fallback for older browsers.
+**Better approach**: Create a lightweight `AppHeader` component that renders a fixed top-right `ThemeToggle` on all pages except Landing (which already has it in Navbar). Then render `AppHeader` once in `App.tsx` outside the `<Routes>`.
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| `src/index.css` | Add `@keyframes sparkEntry` animation |
-| `src/components/VerityLogo.tsx` | Wrap spark paths in animated `<g>` elements |
-| `index.html` | Add inline SVG favicon data URI |
+| `src/components/AppHeader.tsx` | **New** — Renders a fixed-position `ThemeToggle` on all routes except `/` (landing already has one) and `/call/:id` (avoid distraction) |
+| `src/App.tsx` | Import and render `<AppHeader />` inside the router, above `<Routes>` |
+
+This single-component approach avoids touching every page file individually.
 
