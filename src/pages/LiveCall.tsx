@@ -25,6 +25,16 @@ type CallPhase =
   | "no-spark"
   | "complete";
 
+interface CallRecord {
+  id: string;
+  caller_id: string;
+  callee_id: string;
+  agora_channel: string;
+  caller_decision?: string | null;
+  callee_decision?: string | null;
+  is_mutual_spark?: boolean | null;
+}
+
 const CALL_DURATION = 45;
 
 const LiveCall = () => {
@@ -43,7 +53,7 @@ const LiveCall = () => {
   const [myChoice, setMyChoice] = useState<"spark" | "pass" | null>(null);
 
   // Call data from DB
-  const [callData, setCallData] = useState<any>(null);
+  const [callData, setCallData] = useState<CallRecord | null>(null);
   const [myRole, setMyRole] = useState<"caller" | "callee" | null>(null);
   const [partnerId, setPartnerId] = useState<string | null>(null);
 
@@ -137,6 +147,28 @@ const LiveCall = () => {
     return () => clearInterval(t);
   }, [phase, secondsLeft]);
 
+  // Periodic AI moderation check every 15s during live phase
+  useEffect(() => {
+    if (phase !== 'live' || !callId || !user) return;
+    if (elapsed > 0 && elapsed % 15 === 0) {
+      supabase.functions.invoke('ai-moderate', {
+        body: {
+          call_id: callId,
+          elapsed_seconds: elapsed,
+          user_id: user.id,
+          partner_id: partnerId,
+          channel: channelFromUrl,
+        },
+      }).then(({ data }) => {
+        if (data?.flagged) {
+          toast.warning('Safety check flagged this call. Our team will review.');
+        }
+      }).catch(() => {
+        // Silent fail — moderation must not interrupt call UX
+      });
+    }
+  }, [phase, elapsed, callId, user, partnerId, channelFromUrl]);
+
   // Handle choice: write to calls table
   const handleChoice = useCallback(async (choice: "spark" | "pass") => {
     if (!callId || !myRole) return;
@@ -184,7 +216,7 @@ const LiveCall = () => {
         table: "calls",
         filter: `id=eq.${callId}`,
       }, (payload) => {
-        const row = payload.new as any;
+        const row = payload.new as CallRecord;
         if (row.caller_decision && row.callee_decision) {
           setPhase(row.is_mutual_spark ? "mutual-spark" : "no-spark");
         }
