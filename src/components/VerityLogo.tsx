@@ -46,24 +46,6 @@ const VerityLogo = ({
     />
   );
 
-  /* Multi-pointed starburst spark in gold */
-  const spark = (
-    <g className="dark:filter-none" style={{ filter: "none" }}>
-      <g className="hidden dark:block" filter="url(#goldGlow)">
-        <path
-          d="M38 4 L39.2 8.5 L43 6.5 L40.5 10 L45 10.8 L40.8 12.5 L44 15.5 L39.5 14 L39.8 18.5 L38 14.5 L36.2 18.5 L36.5 14 L32 15.5 L35.2 12.5 L31 10.8 L35.5 10 L33 6.5 L36.8 8.5 Z"
-          fill="#D4AF37"
-        />
-      </g>
-      <g className="dark:hidden">
-        <path
-          d="M38 4 L39.2 8.5 L43 6.5 L40.5 10 L45 10.8 L40.8 12.5 L44 15.5 L39.5 14 L39.8 18.5 L38 14.5 L36.2 18.5 L36.5 14 L32 15.5 L35.2 12.5 L31 10.8 L35.5 10 L33 6.5 L36.8 8.5 Z"
-          fill="#D4AF37"
-        />
-      </g>
-    </g>
-  );
-
   /* ---------- icon only (V + spark) ---------- */
   const icon = (
     <svg

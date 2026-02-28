@@ -125,7 +125,7 @@ export function useAgoraCall({ appId, channel, token, uid, enabled }: UseAgoraCa
     return () => {
       leave();
     };
-  }, [enabled, appId, channel]);
+  }, [enabled, appId, channel, join, leave]);
 
   return {
     localVideoRef,
