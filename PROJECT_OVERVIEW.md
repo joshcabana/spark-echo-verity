@@ -1,52 +1,217 @@
-# Spark Echo Verity – Project Examination
+# Verity — Comprehensive Project Examination
 
-## Primary objectives and intended outcomes
-- Deliver a verified, safety-first speed-dating experience built around 45-second anonymous video drops and a mutual Spark/Pass reveal model.
-- Reduce swipe fatigue by replacing profiles and infinite scroll with scheduled “Drops,” human voice/eye contact, and dignity-preserving privacy defaults.
-- Embed trust and accountability via real-time AI safety, transparent metrics, and a fair appeals pipeline.
-- Prove a path to sustainable revenue through token packs and Verity Pass subscriptions without introducing dark-pattern engagement loops.
+*Last updated: February 27, 2026*
 
-## Strategy, methodology, and timeline
-- Approach: Pair a lightweight React + Supabase + Agora stack with real-time safety and clear governance (appeals, admin moderation, transparency). Ship in weekly slices that move end-to-end user value, not isolated components.
-- Resources:
-  - Frontend: React 18, Vite, React Router, React Query, shadcn/ui + Tailwind, Framer Motion for motion, Sonner for toasts.
-  - Backend: Supabase Postgres + RLS, edge functions for matchmaking (`find-match`), video auth (`agora-token`), AI moderation (`ai-moderate`), appeals (`submit-appeal`), payments (`create-checkout`, `customer-portal`, `stripe-webhook`), and drop/tokens management.
-  - Third parties: Agora for low-latency video; Stripe for token packs and subscriptions; (placeholder) AI moderation provider to be wired into `ai-moderate`.
-- Timeline and milestones (dates relative to current week of Feb 24, 2026):
-  - ✅ Foundation (done): Landing narrative, auth/onboarding shell, Supabase schemas for drops/calls/appeals/reports, Stripe/Agora functions scaffolded, transparency page.
-  - 🟠 Current sprint (Feb 24–Mar 7): Harden trust gates (phone/selfie/pledge in `AuthContext` + onboarding), stabilize drop RSVP + matchmaking queue (`find-match`), ensure Agora token issuance flow works in LiveCall.
-  - 🔜 Next sprint (Mar 8–Mar 21): Replace `ai-moderate` stub with production provider, tune safety thresholds, wire reporting → appeals dashboard, and validate Guardian Net + Safe Exit in live calls.
-  - 🔜 Pilot & telemetry (Mar 22–Apr 4): Run limited Drops, track spark conversion/appeals/moderation rates, and surface real metrics on Transparency/Admin.
-  - 🔜 Monetization hardening (Apr 5–Apr 18): Finalize token shop pricing guardrails, verify subscription lifecycle via `stripe-webhook`, and add retention hooks (Spark History → Chat → Voice Intro flow).
+---
 
-## Current progress and status
-- Completed
-  - Landing/marketing story with safety/privacy positioning (Hero, Stats, Features, Innovations sections).
-  - Drop discovery and RSVP flow in `Lobby` using Supabase queries, filters, and realtime updates; matchmaking queue + call creation handled by `find-match`.
-  - Live call loop (`LiveCall` + `useAgoraCall`): Agora credential issuance, 45s timer, Spark/Pass capture, mutual-spark reveal, Guardian Net, Safe Exit, and reporting.
-  - Token monetization scaffolding: Token shop UI, Stripe checkout/session creation, subscription checks, and customer portal endpoints.
-  - Governance surface: Transparency dashboard, Admin moderation/appeals/analytics views, and `submit-appeal` edge function.
-- In progress
-  - AI moderation is stubbed (random score in `ai-moderate`); needs provider integration and policy tuning.
-  - Trust signals (phone/selfie/safety pledge) enforced in lobby matchmaking but require full onboarding completion to unblock Drops.
-  - Observability for real metrics: Transparency/Admin currently show static data; needs wiring to Supabase aggregates.
-- Upcoming
-  - Spark reflection/voice-intro/chemistry replay flows after mutual spark.
-  - Friendfluence/room-level social joining and more granular drop scheduling controls.
+## 1. Primary Objectives & Intended Outcomes
 
-## Challenges and mitigations
-- Lint/type debt: ESLint currently fails on `any` usage across onboarding/lobby/live-call and on Fast Refresh warnings. Mitigation: add typed Supabase response models and move shared constants out of component files; outside scope of this doc.
-- AI safety placeholder: `ai-moderate` returns random scores; production requires a vetted moderation provider, rate limits, and human-review feedback loop.
-- Dependency drift: package-lock and package.json were initially out of sync (npm ci fails); npm install (no lockfile changes) works locally. Plan to regenerate lockfile with the intended toolchain to stabilize CI.
-- Performance: Vite build emits a >2.5 MB bundle warning; consider chunking heavy routes (Admin, LiveCall) with dynamic imports.
-- Configuration sensitivity: Agora/Stripe/Supabase environment variables are mandatory for LiveCall and checkout flows; ensure deployment secrets are present per environment before pilots.
+Verity is a verified, safety-first speed-dating platform built around 45-second anonymous video "Drops" and a mutual Spark/Pass reveal model. The project pursues six core objectives:
 
-## Adjustments made to stay on track
-- Centered the product on scheduled Drops with mutual-spark reveal to minimize rejection harm and dopamine loops.
-- Added transparency and appeals surfaces early (before GA) to build trust and provide governance for AI decisions.
-- Gated live participation behind verification signals (phone, selfie, safety pledge) to reduce fraud and bad actors during pilot.
+1. **Authentic first impressions** — Replace swipe-based profile browsing with live 45-second video calls that surface real voice, eye contact, and presence.
+2. **Zero ghosting by design** — The mutual-spark gate means identities are revealed only when both participants choose "Spark." A "Pass" is silent and private, eliminating rejection exposure.
+3. **Safety-first architecture** — Real-time AI moderation during calls, server-verified identity gates (phone, selfie, safety pledge), and one-tap Safe Exit and Guardian Net for immediate protection.
+4. **Privacy by default** — Participants are anonymous during the 45-second call. Personal information is withheld until mutual consent.
+5. **Radical transparency** — A public Transparency page exposes platform safety statistics, moderation accuracy, appeals outcomes, and founding principles.
+6. **Intention over addiction** — Scheduled Drops replace infinite scroll. No dopamine loops, no dark-pattern engagement mechanics. Revenue comes from token packs and Verity Pass subscriptions.
 
-## Progress validation
-- Lint: `npm run lint` currently fails on pre-existing TypeScript `any` usage and Fast Refresh warnings (no changes made in this work).
-- Tests: `npm run test` passes (Vitest).
-- Build: `npm run build` succeeds with bundle-size warnings noted above.
+---
+
+## 2. Strategic Plans & Methodologies
+
+### 2.1 Architecture & Technology Stack
+
+| Layer | Technology | Details |
+|-------|-----------|---------|
+| **Frontend** | React 18 + Vite + TypeScript | 14 pages, 91+ components across 8 directories, lazy-loaded heavy routes |
+| **UI** | shadcn/ui + Tailwind CSS + Framer Motion | Responsive design with motion transitions; Sonner for toast notifications |
+| **State** | React Query + AuthContext + Supabase Realtime | Server cache via TanStack Query; global auth/trust/admin state in context; live subscriptions for drops, messages, and queue |
+| **Backend** | Supabase (PostgreSQL + RLS) | 17 tables, 6 custom enums, 3 RPC functions, row-level security policies |
+| **Edge Functions** | 10 Deno functions on Supabase | Matchmaking, video auth, AI moderation, payments, appeals, admin moderation |
+| **Video** | Agora RTC SDK | 45-second sessions with server-issued tokens (10-minute expiry), call participation verified server-side |
+| **Payments** | Stripe | Checkout Sessions, Billing Portal, Webhooks with idempotency via `stripe_processed_events` |
+| **AI Moderation** | Lovable AI Gateway (Gemini 2.5 Flash Lite) | Tool-use based structured risk scoring with policy-driven violation detection |
+| **Deployment** | Lovable.app + Supabase Cloud | Frontend hosted on Lovable; backend on Supabase managed infrastructure |
+
+### 2.2 Database Schema (17 Tables)
+
+| Table | Purpose |
+|-------|---------|
+| `profiles` | User profiles: display name, avatar, age, city, gender, bio, token balance, subscription tier, Stripe customer ID |
+| `user_trust` | Onboarding verification state: phone verified, selfie verified, safety pledge, DOB, preferences, onboarding step/completion |
+| `user_roles` | Role-based access: `admin`, `moderator`, `user` |
+| `user_blocks` | Bidirectional user blocking for matchmaking exclusion |
+| `rooms` | Themed rooms with categories, descriptions, icons, gender balance tracking, premium flags |
+| `drops` | Scheduled speed-dating events: title, region, timezone, capacity, duration, Friendfluence flag |
+| `drop_rsvps` | User RSVPs for drops with check-in status and friend invite codes |
+| `matchmaking_queue` | Atomic queue entries: user/room/drop, status tracking, matched call reference |
+| `calls` | Video call records: caller/callee, Agora channel, start/end times, duration, Spark/Pass decisions, mutual spark flag |
+| `sparks` | Mutual spark connections: linked call, AI insight, voice intro URLs, expiry, archive status |
+| `messages` | Post-spark chat: text and voice messages with read receipts |
+| `moderation_flags` | AI and human moderation flags: flagged user, call, reason, AI confidence, clip URL, action taken |
+| `moderation_events` | Detailed moderation event log: call, risk score, action, metadata |
+| `appeals` | User appeals against moderation decisions: explanation, voice note, admin response, status |
+| `reports` | User-submitted reports: reason, reported user, call, buffer URL, review status |
+| `token_transactions` | Token credit/debit ledger: amount, reason, Stripe session reference |
+| `stripe_processed_events` | Webhook idempotency table: prevents duplicate processing of Stripe events |
+| `platform_stats` | Aggregated platform metrics: active users, total calls/sparks, moderation stats, gender balance |
+| `runtime_alert_events` | System-level alert log: level, message, metadata |
+| `push_subscriptions` | Web push notification subscriptions: endpoint, keys |
+
+### 2.3 Edge Functions (10)
+
+| Function | Responsibility |
+|----------|---------------|
+| `find-match` | Atomic matchmaking: joins queue, finds waiting partner (excluding blocked users), creates call record, returns call ID |
+| `agora-token` | Issues Agora RTC tokens with 10-minute expiry after verifying user is a participant in the requested call |
+| `ai-moderate` | Analyzes call transcripts/metadata via LLM (Gemini 2.5 Flash Lite) with tool-use; returns structured risk score, violation flag, and reason |
+| `create-checkout` | Creates Stripe Checkout sessions; validates JWT auth, origin allowlist, and price-ID allowlist; maps to payment or subscription mode |
+| `stripe-webhook` | Processes Stripe events (checkout.session.completed, subscription updates/deletions); idempotent via `stripe_processed_events`; credits tokens or updates subscription tier |
+| `customer-portal` | Creates Stripe Billing Portal sessions for subscription management; validates return URL against origin allowlist |
+| `check-subscription` | Verifies user's current subscription status against Stripe |
+| `spark-extend` | Extends spark connection expiry window |
+| `submit-appeal` | Processes user appeals against moderation flags with optional voice notes |
+| `admin-moderation` | Admin-only endpoint for reviewing flags and taking moderation actions (ban/warn/clear) |
+
+### 2.4 Phased Timeline
+
+| Phase | Status | Scope |
+|-------|--------|-------|
+| **Phase 1 — Core Platform** | Complete | Auth, 8-step onboarding, lobby/drops, Agora video calls, 45s timer, Spark/Pass mechanic, mutual-spark reveal, spark history, post-match chat |
+| **Phase 2 — Safety & Infrastructure** | Complete | AI moderation wired to real LLM, matchmaking queue with block filtering, selfie verification, admin dashboard (moderation queue + appeals inbox + analytics), transparency page, appeals flow, security hardening, Profile page |
+| **Phase 3 — Payments & Premium** | Complete | Token shop with 3 packs (10/15/30 tokens), Verity Pass subscriptions (monthly/annual), Stripe Checkout + Customer Portal + Webhook handler with idempotency and customer-ID mapping |
+| **Phase 4 — Innovations** | Roadmap | Spark Reflection, Voice Intro, Guardian Net refinement, Chemistry Replay Vault, Friendfluence Drops, push notifications |
+
+### 2.5 Sprint Schedule (relative to Feb 27, 2026)
+
+| Sprint | Dates | Focus |
+|--------|-------|-------|
+| **Current** | Feb 24 – Mar 7 | Harden trust gates (phone/selfie/pledge enforcement in `AuthContext` + onboarding), stabilize drop RSVP + matchmaking queue (`find-match`), ensure Agora token issuance flow works end-to-end in LiveCall |
+| **Next** | Mar 8 – Mar 21 | Tune AI moderation thresholds, wire reporting → appeals dashboard, validate Guardian Net + Safe Exit in live calls |
+| **Pilot & Telemetry** | Mar 22 – Apr 4 | Run limited Drops with real users, track spark conversion/appeals/moderation rates, surface live metrics on Transparency and Admin pages |
+| **Monetization Hardening** | Apr 5 – Apr 18 | Finalize token shop pricing guardrails, verify subscription lifecycle via `stripe-webhook`, add retention hooks (Spark History → Chat → Voice Intro flow) |
+
+---
+
+## 3. Current Progress & Status
+
+### 3.1 Completed
+
+**Frontend (14 pages, fully implemented):**
+- **Landing** — Marketing narrative with Hero, Stats counter, Features grid, Innovations showcase, and safety/privacy positioning
+- **Auth** — Supabase email/password authentication with redirect handling
+- **Onboarding** — 8-step progressive flow: welcome → age verification → phone → selfie → safety pledge → preferences → profile setup → completion (each step updates `user_trust`)
+- **Lobby** — Drop discovery with search/filter, RSVP management, realtime participant counts, matchmaking queue entry via `find-match`
+- **LiveCall** — 45-second anonymous video via Agora, countdown timer, Spark/Pass decision capture, mutual-spark reveal with confetti animation, Guardian Net signal, Safe Exit, and in-call reporting
+- **SparkHistory** — List of mutual sparks with partner info, AI insights, and navigation to chat
+- **Chat** — Real-time text and voice messaging with read receipts via Supabase Realtime
+- **TokenShop** — 3 token packs + 2 subscription tiers (monthly/annual), integrated with Stripe Checkout, purchase success handling
+- **Profile** — Avatar upload to Supabase Storage, editable display name, verification badges (phone/selfie/pledge), token balance display, subscription management via Customer Portal, sign-out
+- **Admin** — Moderation queue with flag review (ban/warn/clear), appeals inbox with admin response, analytics dashboard, user management (admin-role gated)
+- **Transparency** — Founding principles, safety statistics, moderation accuracy rates, appeals outcomes
+- **Appeal** — User-facing appeal submission with explanation and optional voice note upload
+
+**Backend:**
+- All 10 edge functions deployed and functional with JWT authentication
+- Atomic matchmaking with block-list filtering (`find-match`)
+- Agora token issuance with server-side call participation verification (`agora-token`)
+- AI moderation upgraded from random-score stub to real LLM (Lovable AI Gateway / Gemini 2.5 Flash Lite) with structured tool-use and policy-based risk scoring (`ai-moderate`)
+- Stripe payment flow: checkout creation with price-ID allowlist, webhook processing with idempotency, customer portal with origin-validated return URLs
+- Admin moderation actions persisted to `moderation_flags` with audit trail
+
+**Security hardening:**
+- JWT authentication enforced on all edge functions
+- Price-ID allowlist in `create-checkout` prevents arbitrary Stripe price injection
+- Origin allowlist on `create-checkout` and `customer-portal` prevents open redirect attacks
+- Webhook signature verification with `stripe.webhooks.constructEventAsync`
+- Idempotent event processing via `stripe_processed_events` table (PK on `event_id`)
+- Customer-ID mapping for deterministic Stripe lookups (replaces email-based approach)
+- Agora tokens issued with 10-minute expiry and call-participation verification
+- Protected routes with admin-role gating via `has_role` RPC function
+- Error boundary wrapping the application root
+
+**Performance:**
+- Lazy loading for 8 heavy routes: LiveCall, SparkHistory, Chat, TokenShop, Admin, Transparency, Appeal, Profile
+- Code splitting via React.lazy + Suspense with loading spinner fallback
+
+### 3.2 In Progress
+
+- **AI moderation pipeline** — The `ai-moderate` function is fully implemented and calls a real LLM, but it is not yet invoked automatically during active video calls. A transcript/frame pipeline from the client needs to be wired to trigger moderation checks during live sessions.
+- **Observability** — Transparency and Admin analytics pages currently display static seed data. These need to be wired to Supabase aggregates (`platform_stats` table or live queries) to show real metrics.
+- **Trust gate enforcement** — Phone/selfie/safety-pledge verification signals are checked in lobby matchmaking but require complete onboarding flow to properly gate Drop participation.
+
+### 3.3 Upcoming
+
+- **Push notifications** — RSVP reminders and new Spark match alerts (schema ready: `push_subscriptions` table exists)
+- **Spark Reflection** — Post-call AI-generated tone/energy insight surfaced on the spark card
+- **Verity Voice Intro** — 15-second audio message before text chat unlocks (schema ready: `voice_intro_a`/`voice_intro_b` columns on `sparks`)
+- **Guardian Net refinement** — Safe-call signal dispatched to a user-designated trusted contact during live calls
+- **Chemistry Replay Vault** — 8-second anonymized highlight reel from mutual-spark calls (Verity Pass exclusive)
+- **Friendfluence Drops** — Invite friends to the same Drop for social joining (schema ready: `is_friendfluence` on `drops`, `friend_invite_code` on `drop_rsvps`)
+- **Granular drop scheduling** — More control over drop timing, region targeting, and capacity management
+
+---
+
+## 4. Challenges & Mitigations
+
+### Active Challenges
+
+| Challenge | Severity | Details | Mitigation |
+|-----------|----------|---------|-----------|
+| **Test coverage gap** | Critical | Only 1 placeholder test exists (`src/test/example.test.ts` — `expect(true).toBe(true)`). Vitest + React Testing Library are fully configured but no real component, integration, or E2E tests have been written. | Must add unit tests for edge functions, component tests for critical flows (onboarding, matchmaking, call lifecycle), and integration tests before pilot launch. |
+| **Lint/type debt** | Moderate | `npm run lint` fails on `any` usage across onboarding, lobby, and live-call components, plus Fast Refresh warnings for non-component exports. | Add typed Supabase response models to replace `any` casts. Move shared constants and helper functions out of component files into dedicated modules. |
+| **Bundle size** | Moderate | Vite build emits a >2.5 MB chunk warning. | Lazy loading for 8 routes partially addresses this. Further code splitting of heavy dependencies (Agora SDK, Stripe.js) and tree-shaking review needed. |
+| **AI moderation live wiring** | Moderate | `ai-moderate` function works with real LLM but is not called during active video sessions. | Build a client-side transcript/metadata pipeline that periodically sends call context to `ai-moderate` during the 45-second window. |
+| **Dependency toolchain** | Low | Both `package-lock.json` (npm) and `bun.lockb` (Bun) exist. `npm ci` may fail due to lockfile drift. | Choose a single package manager and regenerate the canonical lockfile. Remove the unused lockfile. |
+| **Environment secrets** | Operational | Agora App ID/Certificate, Stripe Secret Key/Webhook Secret, Supabase URL/Keys, and Lovable API Key are mandatory for call and payment flows. | Document required environment variables. Ensure deployment secrets are configured per environment (dev/staging/production) before pilots. |
+| **Static dashboard data** | Low | Transparency and Admin analytics pages display hardcoded seed data rather than live database aggregates. | Wire pages to query `platform_stats` or build live aggregate queries against `calls`, `sparks`, `moderation_flags`, and `appeals` tables. |
+
+### Resolved Challenges
+
+| Challenge | Resolution |
+|-----------|-----------|
+| **AI moderation stub** | Upgraded from `Math.random()` score to real LLM call (Gemini 2.5 Flash Lite via Lovable AI Gateway) with structured tool-use and policy-based violation detection. |
+| **Payment security** | `create-checkout` now enforces JWT authentication, derives user email from session, validates request origin against an allowlist, and checks price-ID against a hardcoded map. |
+| **Webhook idempotency** | Added `stripe_processed_events` table with primary key on `event_id` to prevent duplicate token credits or subscription updates. |
+| **Agora token security** | Replaced client-side stubs with `RtcTokenBuilder.buildTokenWithUid` on the server, issuing tokens with 10-minute expiry only after verifying the requesting user is a participant in the call. |
+| **Open redirect risk** | Customer portal `return_url` now validated against origin allowlist before creating Stripe Billing Portal sessions. |
+| **Bundle performance** | Added lazy loading via `React.lazy` + `Suspense` for 8 heavy routes (LiveCall, Admin, TokenShop, SparkHistory, Chat, Transparency, Appeal, Profile). |
+
+---
+
+## 5. Adjustments to Original Plans
+
+1. **AI moderation accelerated** — Upgraded from a random-score stub to a real LLM with tool-use ahead of the original "Next sprint" timeline. However, live-call invocation was deferred until matchmaking stabilizes in the current sprint.
+2. **Security hardening promoted** — Originally planned for later phases, payment and token-issuance security vulnerabilities were identified and addressed immediately in Phase 2.
+3. **Profile page added** — Not in the original plan; added to Phase 2 scope to provide users with account management, verification status visibility, and subscription controls.
+4. **Customer-ID mapping** — The Stripe webhook originally used email-based customer lookups. Updated to use `stripe_customer_id` stored on `profiles` for deterministic, reliable mapping.
+5. **Lazy loading introduced** — Added code splitting for 8 routes in `App.tsx` to address the >2.5 MB bundle warning and improve initial page load performance.
+6. **Transparency and appeals prioritized** — Built governance surfaces (Transparency page, Admin appeals inbox, `submit-appeal` function) before GA to establish trust infrastructure early.
+7. **Trust gates as prerequisite** — Gated live Drop participation behind multi-step verification (phone, selfie, safety pledge) to reduce fraud and bad actors during the pilot phase.
+
+---
+
+## 6. Development Metrics
+
+| Metric | Value |
+|--------|-------|
+| Total commits | 55 |
+| Active development period | Feb 26–27, 2026 (2 days) |
+| Frontend pages | 14 |
+| UI components | 91+ across 8 directories |
+| Edge functions | 10 |
+| Database tables | 17 |
+| Custom enums | 6 (`app_role`, `appeal_status`, `call_status`, `moderation_action`, `spark_decision`, `subscription_tier`) |
+| RPC functions | 3 (`get_drop_rsvp_count`, `has_role`, `is_spark_member`) |
+| Lines of TypeScript (types) | 961 (auto-generated Supabase types) |
+| Deployment target | Lovable.app (frontend) + Supabase Cloud (backend) |
+
+---
+
+## 7. Progress Validation
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| `npm run test` | Passes | Vitest runs successfully; only 1 placeholder test exists |
+| `npm run build` | Passes | Vite production build succeeds with bundle-size warnings (>2.5 MB chunk) |
+| `npm run lint` | Fails | Pre-existing TypeScript `any` usage and Fast Refresh warnings; no regressions from recent changes |
