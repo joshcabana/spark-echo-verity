@@ -12,6 +12,8 @@ import MatchmakingOverlay from "@/components/lobby/MatchmakingOverlay";
 import BottomNav from "@/components/BottomNav";
 import { isToday, isThisWeek } from "date-fns";
 import { toast } from "sonner";
+import { REQUIRE_PHONE_VERIFICATION } from "@/lib/runtimeConfig";
+import { isTrustComplete } from "@/lib/trust";
 
 interface Drop {
   id: string;
@@ -38,11 +40,7 @@ const Lobby = () => {
     dropId: string;
   }>({ active: false, roomName: "", dropTitle: "", dropId: "" });
 
-  const trustComplete = !!(
-    userTrust?.phone_verified &&
-    userTrust?.selfie_verified &&
-    userTrust?.safety_pledge_accepted
-  );
+  const trustComplete = isTrustComplete(userTrust, REQUIRE_PHONE_VERIFICATION);
 
   // Fetch drops
   const { data: drops = [] } = useQuery<Drop[]>({
@@ -149,7 +147,12 @@ const Lobby = () => {
     if (!user) return;
 
     if (!trustComplete) {
-      toast.error("Complete verification to join live Drops.");
+      const missing: string[] = [];
+      if (!userTrust?.selfie_verified) missing.push("selfie verification");
+      if (!userTrust?.safety_pledge_accepted) missing.push("safety pledge");
+      if (REQUIRE_PHONE_VERIFICATION && !userTrust?.phone_verified) missing.push("phone verification");
+      const missingText = missing.length > 0 ? missing.join(", ") : "verification";
+      toast.error(`Complete ${missingText} to join live Drops.`);
       return;
     }
 
@@ -202,7 +205,7 @@ const Lobby = () => {
       toast.error(message);
       setMatchmaking((m) => ({ ...m, active: false }));
     }
-  }, [user, trustComplete, navigate, stopPolling]);
+  }, [user, userTrust, trustComplete, navigate, stopPolling]);
 
   // Realtime for drops/RSVPs
   useEffect(() => {

@@ -30,6 +30,14 @@ describe("resolveSafeReturnUrl", () => {
     expect(result).toBe("https://spark-echo-verity.lovable.app/tokens");
   });
 
+  it("falls back on disallowed schemes", () => {
+    const result = resolveSafeReturnUrl(
+      "javascript:alert('xss')",
+      allowedOrigins,
+    );
+    expect(result).toBe("https://spark-echo-verity.lovable.app/tokens");
+  });
+
   it("falls back on non-string values", () => {
     const result = resolveSafeReturnUrl({} as unknown, allowedOrigins);
     expect(result).toBe("https://spark-echo-verity.lovable.app/tokens");

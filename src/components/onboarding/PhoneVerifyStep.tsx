@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,14 +8,31 @@ import { useToast } from "@/hooks/use-toast";
 
 interface PhoneVerifyStepProps {
   onNext: () => void;
+  onSkip?: () => void;
+  phoneEnabled?: boolean;
+  requirePhoneVerification?: boolean;
+  settingsError?: string | null;
 }
 
-const PhoneVerifyStep = ({ onNext }: PhoneVerifyStepProps) => {
+const providerIssueRegex = /(sms|phone|twilio|provider|disabled|not enabled|unsupported)/i;
+
+const PhoneVerifyStep = ({
+  onNext,
+  onSkip,
+  phoneEnabled = true,
+  requirePhoneVerification = true,
+  settingsError = null,
+}: PhoneVerifyStepProps) => {
   const [phone, setPhone] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [providerUnavailable, setProviderUnavailable] = useState(!phoneEnabled);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setProviderUnavailable(!phoneEnabled);
+  }, [phoneEnabled]);
 
   const formatAuPhone = (raw: string): string => {
     const digits = raw.replace(/\D/g, "");
@@ -39,6 +56,9 @@ const PhoneVerifyStep = ({ onNext }: PhoneVerifyStepProps) => {
       toast({ title: "Code sent", description: "Check your phone for a verification code." });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      if (providerIssueRegex.test(message)) {
+        setProviderUnavailable(true);
+      }
       toast({ title: "Something went wrong", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -64,6 +84,54 @@ const PhoneVerifyStep = ({ onNext }: PhoneVerifyStepProps) => {
       setLoading(false);
     }
   };
+
+  if (providerUnavailable) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.6 }}
+        className="flex flex-col items-center text-center px-6"
+      >
+        <h2 className="font-serif text-2xl sm:text-3xl text-foreground mb-3">
+          Phone verification unavailable
+        </h2>
+        <p className="text-muted-foreground max-w-md mb-6 text-sm leading-relaxed">
+          SMS verification is temporarily unavailable in this environment.
+        </p>
+        {settingsError && (
+          <p className="text-xs text-muted-foreground/70 mb-6 max-w-md">
+            {settingsError}
+          </p>
+        )}
+        {requirePhoneVerification ? (
+          <>
+            <p className="text-sm text-destructive/90 max-w-md mb-8 leading-relaxed">
+              Safety policy currently requires phone verification before you can continue. Please try again later.
+            </p>
+            <Button variant="outline" size="lg" className="w-full max-w-sm" disabled>
+              Phone verification unavailable
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground max-w-md mb-8 leading-relaxed">
+              You can continue for now while phone verification is unavailable.
+            </p>
+            <Button
+              variant="gold"
+              size="lg"
+              className="w-full max-w-sm"
+              onClick={() => (onSkip ?? onNext)()}
+            >
+              Continue for now
+            </Button>
+          </>
+        )}
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
