@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Shield, User, RefreshCw } from "lucide-react";
+import VerityLogo from "@/components/VerityLogo";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -233,7 +234,7 @@ const Lobby = () => {
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="container max-w-2xl mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-serif text-lg text-foreground">Verity</span>
+            <VerityLogo variant="icon" className="h-7 w-7" linkTo="/" />
             <div className="flex items-center gap-1 ml-3 text-[10px] text-muted-foreground/60">
               <Shield className="w-3 h-3 text-primary/50" />
               <span>Safety first</span>
