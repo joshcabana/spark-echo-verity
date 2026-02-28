@@ -7,9 +7,9 @@ interface VerityLogoProps {
 }
 
 /**
- * Verity brand logo — inline SVG for perfect scaling.
+ * Verity brand logo — angular wing-tipped V with gold starburst spark.
  *
- * Brand colours (from spec sheet):
+ * Brand colours:
  *   Charcoal  #212121  (light-mode V + text)
  *   White     #F3F3F3  (dark-mode V + text)
  *   Gold      #D4AF37  (spark accent — always)
@@ -19,6 +19,51 @@ const VerityLogo = ({
   className = "",
   linkTo = "/",
 }: VerityLogoProps) => {
+  /* Shared SVG defs: golden glow filter for dark mode */
+  const defs = (
+    <defs>
+      <filter id="goldGlow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+        <feColorMatrix
+          in="blur"
+          type="matrix"
+          values="0.83 0 0 0 0  0.69 0 0 0 0  0.22 0 0 0 0  0 0 0 0.6 0"
+          result="glow"
+        />
+        <feMerge>
+          <feMergeNode in="glow" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+  );
+
+  /* Angular wing-tipped V — filled shape using currentColor */
+  const vShape = (
+    <path
+      d="M4 6 C4 6 8 5 13 12 L24 38 L35 12 C40 5 44 6 44 6 L42 8 C42 8 39 8 36 14 L24 42 L12 14 C9 8 6 8 6 8 Z"
+      fill="currentColor"
+    />
+  );
+
+  /* Multi-pointed starburst spark in gold */
+  const spark = (
+    <g className="dark:filter-none" style={{ filter: "none" }}>
+      <g className="hidden dark:block" filter="url(#goldGlow)">
+        <path
+          d="M38 4 L39.2 8.5 L43 6.5 L40.5 10 L45 10.8 L40.8 12.5 L44 15.5 L39.5 14 L39.8 18.5 L38 14.5 L36.2 18.5 L36.5 14 L32 15.5 L35.2 12.5 L31 10.8 L35.5 10 L33 6.5 L36.8 8.5 Z"
+          fill="#D4AF37"
+        />
+      </g>
+      <g className="dark:hidden">
+        <path
+          d="M38 4 L39.2 8.5 L43 6.5 L40.5 10 L45 10.8 L40.8 12.5 L44 15.5 L39.5 14 L39.8 18.5 L38 14.5 L36.2 18.5 L36.5 14 L32 15.5 L35.2 12.5 L31 10.8 L35.5 10 L33 6.5 L36.8 8.5 Z"
+          fill="#D4AF37"
+        />
+      </g>
+    </g>
+  );
+
   /* ---------- icon only (V + spark) ---------- */
   const icon = (
     <svg
@@ -29,16 +74,12 @@ const VerityLogo = ({
       aria-label="Verity — Australian Speed-Dating"
       role="img"
     >
-      {/* V shape — uses currentColor so it follows theme */}
+      {defs}
+      {vShape}
       <path
-        d="M8 8L24 40L40 8"
-        stroke="currentColor"
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        d="M38 4 L39.2 8.5 L43 6.5 L40.5 10 L45 10.8 L40.8 12.5 L44 15.5 L39.5 14 L39.8 18.5 L38 14.5 L36.2 18.5 L36.5 14 L32 15.5 L35.2 12.5 L31 10.8 L35.5 10 L33 6.5 L36.8 8.5 Z"
+        fill="#D4AF37"
       />
-      {/* Gold spark / dot accent — always #D4AF37 */}
-      <circle cx="38" cy="10" r="5" fill="#D4AF37" />
     </svg>
   );
 
@@ -62,16 +103,12 @@ const VerityLogo = ({
       aria-label="Verity — Australian Speed-Dating"
       role="img"
     >
-      {/* V shape */}
+      {defs}
+      {vShape}
       <path
-        d="M8 8L24 40L40 8"
-        stroke="currentColor"
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        d="M38 4 L39.2 8.5 L43 6.5 L40.5 10 L45 10.8 L40.8 12.5 L44 15.5 L39.5 14 L39.8 18.5 L38 14.5 L36.2 18.5 L36.5 14 L32 15.5 L35.2 12.5 L31 10.8 L35.5 10 L33 6.5 L36.8 8.5 Z"
+        fill="#D4AF37"
       />
-      {/* Gold spark */}
-      <circle cx="38" cy="10" r="5" fill="#D4AF37" />
       {/* VERITY wordmark */}
       <text
         x="56"
