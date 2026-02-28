@@ -79,38 +79,11 @@ serve(async (req) => {
       const customer = await stripe.customers.retrieve(customerId);
       if (customer.deleted || !("email" in customer) || !customer.email) return null;
 
-      // Use email filter instead of scanning all users
-      const { data: usersResult } = await supabase.auth.admin.listUsers({
-        page: 1,
-        perPage: 1,
-        // @ts-ignore - filter param supported by Supabase admin API
-      });
+      // Efficient O(1) lookup: use Supabase admin getUserByEmail (GoTrue filter)
+      const { data: userData, error: userErr } = await supabase.auth.admin.getUserByEmail(customer.email);
+      if (userErr || !userData?.user) return null;
 
-      // Search through users with email match using a targeted approach
-      // Since listUsers doesn't support email filter directly, query profiles by checking auth
-      let userId: string | null = null;
-
-      // More reliable: search all pages until we find the email
-      let page = 1;
-      const perPage = 100;
-      while (!userId) {
-        const { data: usersPage } = await supabase.auth.admin.listUsers({ page, perPage });
-        if (!usersPage?.users?.length) break;
-
-        const match = usersPage.users.find((u) => u.email === customer.email);
-        if (match) {
-          userId = match.id;
-          break;
-        }
-
-        // If we got fewer than perPage results, we've reached the end
-        if (usersPage.users.length < perPage) break;
-        page++;
-        // Safety limit to prevent infinite loops
-        if (page > 100) break;
-      }
-
-      if (!userId) return null;
+      const userId = userData.user.id;
 
       const { data: fallbackProfile } = await supabase
         .from("profiles")
@@ -118,7 +91,7 @@ serve(async (req) => {
         .eq("user_id", userId)
         .single();
 
-      // Store stripe_customer_id for future lookups
+      // Cache stripe_customer_id for future lookups
       if (fallbackProfile && !fallbackProfile.stripe_customer_id) {
         await supabase
           .from("profiles")
