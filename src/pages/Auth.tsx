@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Mail, Lock, UserPlus, LogIn } from "lucide-react";
+import VerityLogo from "@/components/VerityLogo";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -81,7 +82,7 @@ const Auth = () => {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
           className="w-full max-w-md">
           <div className="text-center mb-10">
-            <h1 className="font-serif text-3xl text-foreground mb-2">Verity</h1>
+            <VerityLogo className="h-9 w-auto mx-auto mb-2" linkTo="/" />
             <p className="text-sm text-muted-foreground">
               {mode === "login" ? "Welcome back." : "Join a community that values real connection."}
             </p>

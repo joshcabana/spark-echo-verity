@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import VerityLogo from "@/components/VerityLogo";
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -24,9 +25,7 @@ const Navbar = () => {
       }`}
     >
       <div className="container max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link to="/" className="font-serif text-xl text-foreground hover:text-primary transition-colors">
-          Verity
-        </Link>
+        <VerityLogo className="h-7 w-auto" linkTo="/" />
         <div className="flex items-center gap-6">
           <a
             href="#how-it-works"
