@@ -303,7 +303,15 @@ const LiveCall = () => {
               ))}
             </div>
             {agoraError && (
-              <p className="text-xs text-destructive">{agoraError}</p>
+              <div className="flex flex-col items-center gap-3">
+                <p className="text-xs text-destructive">{agoraError}</p>
+                <button
+                  onClick={() => navigate(-1)}
+                  className="text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  Try again
+                </button>
+              </div>
             )}
           </motion.div>
         )}
