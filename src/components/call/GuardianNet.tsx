@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
-import { Shield, X, Check } from "lucide-react";
+import { Shield, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
 
 interface GuardianNetProps {
   open: boolean;
@@ -9,8 +8,6 @@ interface GuardianNetProps {
 }
 
 const GuardianNet = ({ open, onClose }: GuardianNetProps) => {
-  const [shared, setShared] = useState(false);
-
   if (!open) return null;
 
   const endTime = new Date();
@@ -39,30 +36,18 @@ const GuardianNet = ({ open, onClose }: GuardianNetProps) => {
           </button>
         </div>
 
-        {!shared ? (
-          <>
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-              Share a safe-call signal with a trusted contact. They'll only see:
-            </p>
-            <div className="bg-secondary rounded-md p-4 mb-6 text-sm text-foreground/80">
-              "In Verity call until {timeStr}"
-            </div>
-            <p className="text-xs text-muted-foreground/50 mb-6">
-              No other details are shared — not who, not what room, not anything else.
-            </p>
-            <Button variant="gold" size="lg" className="w-full" onClick={() => setShared(true)}>
-              Share with trusted contact
-            </Button>
-          </>
-        ) : (
-          <div className="text-center py-4">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Check className="w-5 h-5 text-primary" />
-            </div>
-            <p className="text-sm text-foreground mb-2">Guardian notified</p>
-            <p className="text-xs text-muted-foreground">They'll be alerted if you don't check in by {timeStr}.</p>
-          </div>
-        )}
+        <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+          Guardian Net is in beta. Trusted-contact delivery is not enabled yet.
+        </p>
+        <div className="bg-secondary rounded-md p-4 mb-6 text-sm text-foreground/80">
+          Preview message: "In Verity call until {timeStr}"
+        </div>
+        <p className="text-xs text-muted-foreground/50 mb-6">
+          This is currently a preview-only flow. Enablement is planned before pilot launch.
+        </p>
+        <Button variant="gold" size="lg" className="w-full" disabled>
+          Coming soon
+        </Button>
       </motion.div>
     </motion.div>
   );

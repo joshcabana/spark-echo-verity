@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.21.0";
+import { resolveSafeReturnUrl } from "../_shared/url-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,13 +92,10 @@ serve(async (req) => {
         .eq("user_id", user.id);
     }
 
-    // Allowlist-based return URL validation
-    const safeReturnUrl = (typeof return_url === "string" && ALLOWED_ORIGINS.some(o => return_url.startsWith(o)))
-      ? return_url
-      : `${ALLOWED_ORIGINS[0]}/tokens`;
+    const safeReturnUrl = resolveSafeReturnUrl(return_url, ALLOWED_ORIGINS);
 
     const session = await stripe.billingPortal.sessions.create({
-      customer: customer.id,
+      customer: customerId,
       return_url: safeReturnUrl,
     });
 

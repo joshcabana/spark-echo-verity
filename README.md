@@ -15,8 +15,8 @@
 |---|-----------|---------|
 | 1 | **Authentic first impressions** | Replace profile-photo bias with live voice and video — real chemistry in 45 seconds |
 | 2 | **Zero ghosting by design** | Mutual-spark gate means no unrequited contact; no rejection signals sent |
-| 3 | **Safety first** | AI-moderated calls, identity verification (phone + selfie), safety pledge, and user blocking |
-| 4 | **Privacy by default** | Anonymous until mutual spark; call content never stored; AI moderates in-memory only |
+| 3 | **Safety first** | Live safety checks (metadata + transcript snippets where available), identity verification (phone + selfie), safety pledge, and user blocking |
+| 4 | **Privacy by default** | Anonymous until mutual spark; raw call video is not stored |
 | 5 | **Radical transparency** | Public safety stats, moderation rates, and gender-balance metrics published in real time |
 | 6 | **Intention over addiction** | No infinite scroll, no streaks, no dopamine loops — Verity is used, not consumed |
 
@@ -68,7 +68,7 @@
 - Realtime subscriptions for drops, RSVPs, calls, and messages
 
 ### In Progress 🔄
-- Wiring real-time AI moderation to live call frames (stub function exists; UI copy correctly states "Safety first" rather than implying active AI)
+- Tuning live moderation thresholds and browser transcript coverage fallbacks
 - Phase 4 innovation features (Spark Reflection, Voice Intro, Guardian Net)
 
 ### Upcoming 📋
@@ -85,14 +85,14 @@
 | **Payment security** — `create-checkout` accepted arbitrary `customer_email` and `success_url` from clients, enabling fraud and open-redirect attacks | Rewrote to authenticate the caller's JWT, derive email from the verified session, build redirect URLs server-side from an origin allowlist, and validate `price_id` against a hardcoded map |
 | **Stripe webhook idempotency** — duplicate webhook deliveries could credit tokens or subscriptions multiple times | Added `stripe_processed_events` table (primary key on `event_id`); duplicate events return `{ received: true }` immediately |
 | **Agora stub tokens** — early implementation returned placeholder tokens, breaking real calls | Replaced with `RtcTokenBuilder.buildTokenWithUid` (10-minute expiry); call-participation verified server-side before token is issued |
-| **Open redirect in customer portal** — `return_url` was accepted verbatim from client, enabling redirect to arbitrary sites | Replaced with origin allowlist check; falls back to `/tokens` if URL doesn't start with an allowed origin |
+| **Open redirect in customer portal** — `return_url` was accepted verbatim from client, enabling redirect to arbitrary sites | Replaced with strict URL parsing + exact-origin allowlist validation; falls back to `/tokens` when invalid |
 | **Misleading UI copy** — Lobby previously showed "AI safety on" before real-time AI moderation was wired | Changed to "Safety first" — accurate (safety pledge, blocking, and reporting exist) without overstating automation |
 
 ---
 
 ## Adjustments to Original Plans
 
-1. **AI moderation timeline shifted** — Real-time frame analysis is architecturally ready (`ai-moderate` function, call participation gate) but wired after core matchmaking stabilises. UI accurately reflects current state.
+1. **AI moderation timeline shifted** — Transcript-assisted moderation is now wired in the live call flow (with browser fallback behavior) and is being tuned before pilot launch.
 2. **Security hardening promoted to Phase 2** — Originally planned for a later hardening sprint; vulnerabilities found in payment flows were addressed immediately before any public launch.
 3. **Customer ID mapping added to webhook** — Original plan used email-only lookup; Stripe email can change, so `stripe_customer_id` is now stored on `profiles` for deterministic lookup.
 
@@ -111,6 +111,8 @@
 ---
 
 ## Development
+
+Package manager policy: `npm` is the canonical toolchain for local dev and CI.
 
 ```sh
 # Install dependencies

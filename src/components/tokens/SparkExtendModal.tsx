@@ -68,11 +68,11 @@ const SparkExtendModal = ({ open, onClose }: SparkExtendModalProps) => {
           </div>
 
           <p className="text-[11px] text-muted-foreground/40 text-center mb-4">
-            Free daily extension included with Verity Pass
+            Spark Extend is in beta and not connected to live spark records yet.
           </p>
 
           <Button variant="gold" size="lg" className="w-full" onClick={onClose}>
-            Extend spark
+            Close preview
           </Button>
         </motion.div>
       </motion.div>

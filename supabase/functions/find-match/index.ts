@@ -49,82 +49,72 @@ serve(async (req) => {
       }
     }
 
-    // Upsert user into queue
-    const { error: upsertErr } = await admin
+    // Join queue without mutating an already-existing row (important for polling safety).
+    const { error: joinErr } = await admin
       .from("matchmaking_queue")
       .upsert(
         { user_id: user.id, room_id, drop_id, status: "waiting", joined_at: new Date().toISOString() },
-        { onConflict: "user_id,drop_id" }
+        { onConflict: "user_id,drop_id", ignoreDuplicates: true }
       );
-    if (upsertErr) {
-      console.error("Queue upsert error:", upsertErr);
+    if (joinErr) {
+      console.error("Queue join error:", joinErr);
       throw new Error("Failed to join queue");
     }
 
-    // Attempt atomic match using raw SQL via rpc
-    // We use a direct query approach: find oldest waiting user in same drop, not self, not blocked
-    const { data: candidates, error: candErr } = await admin
+    // Read current queue state for this user/drop.
+    const { data: selfQueue, error: selfQueueErr } = await admin
       .from("matchmaking_queue")
-      .select("id, user_id")
+      .select("id, status, call_id")
+      .eq("user_id", user.id)
       .eq("drop_id", drop_id)
-      .eq("status", "waiting")
-      .neq("user_id", user.id)
-      .order("joined_at", { ascending: true })
-      .limit(10);
+      .single();
 
-    if (candErr) {
-      console.error("Candidate query error:", candErr);
+    if (selfQueueErr || !selfQueue) {
+      console.error("Self queue lookup error:", selfQueueErr);
       throw new Error("Matchmaking temporarily unavailable");
     }
 
-    // Filter out blocked users
-    let matchedCandidate = null;
-    if (candidates && candidates.length > 0) {
-      const candidateIds = candidates.map((c: { id: string; user_id: string }) => c.user_id);
+    // If this poll cycle is already matched, return the existing match immediately.
+    if (selfQueue.status === "matched" && selfQueue.call_id) {
+      const { data: existingCall } = await admin
+        .from("calls")
+        .select("id, agora_channel")
+        .eq("id", selfQueue.call_id)
+        .single();
 
-      // Get blocks where current user blocked candidates
-      const { data: blocksOutgoing } = await admin
-        .from("user_blocks")
-        .select("blocked_id")
-        .eq("blocker_id", user.id)
-        .in("blocked_id", candidateIds);
-
-      // Get blocks where candidates blocked current user
-      const { data: blocksIncoming } = await admin
-        .from("user_blocks")
-        .select("blocker_id")
-        .eq("blocked_id", user.id)
-        .in("blocker_id", candidateIds);
-
-      const blockedSet = new Set<string>();
-      if (blocksOutgoing) {
-        for (const b of blocksOutgoing) blockedSet.add(b.blocked_id);
+      if (existingCall?.agora_channel) {
+        return new Response(
+          JSON.stringify({
+            status: "matched",
+            call_id: existingCall.id,
+            agora_channel: existingCall.agora_channel,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-      if (blocksIncoming) {
-        for (const b of blocksIncoming) blockedSet.add(b.blocker_id);
-      }
-
-      matchedCandidate = candidates.find((c: { id: string; user_id: string }) => !blockedSet.has(c.user_id));
     }
 
-    if (!matchedCandidate) {
+    // Only waiting rows can enter the claim flow.
+    if (selfQueue.status !== "waiting") {
       return new Response(
         JSON.stringify({ status: "queued" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Try to claim the match atomically by updating the candidate's status
-    const { data: claimed, error: claimErr } = await admin
-      .from("matchmaking_queue")
-      .update({ status: "matching" })
-      .eq("id", matchedCandidate.id)
-      .eq("status", "waiting")
-      .select("id, user_id")
-      .single();
+    // Atomically claim a compatible candidate in SQL using row-level locks.
+    const { data: claimRows, error: claimErr } = await admin.rpc("claim_match_candidate", {
+      p_user_id: user.id,
+      p_drop_id: drop_id,
+    });
 
-    if (claimErr || !claimed) {
-      // Race condition: someone else matched them, stay queued
+    if (claimErr) {
+      console.error("Candidate claim error:", claimErr);
+      throw new Error("Matchmaking temporarily unavailable");
+    }
+
+    const claimed = claimRows?.[0];
+    if (!claimed) {
       return new Response(
         JSON.stringify({ status: "queued" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -139,7 +129,7 @@ serve(async (req) => {
       .from("calls")
       .insert({
         caller_id: user.id,
-        callee_id: claimed.user_id,
+        callee_id: claimed.candidate_user_id,
         room_id,
         status: "active",
         started_at: new Date().toISOString(),
@@ -150,23 +140,30 @@ serve(async (req) => {
       .single();
 
     if (callErr || !call) {
-      // Rollback: put candidate back to waiting
-      await admin.from("matchmaking_queue").update({ status: "waiting" }).eq("id", claimed.id);
+      // Rollback queue claim if call creation fails.
+      await admin
+        .from("matchmaking_queue")
+        .update({ status: "waiting", matched_at: null, call_id: null })
+        .in("id", [selfQueue.id, claimed.candidate_queue_id]);
       throw new Error("Failed to create call");
     }
 
-    // Update both queue entries to matched
+    // Finalize both queue entries to matched.
     const now = new Date().toISOString();
-    await admin
+    const { error: finalizeErr } = await admin
       .from("matchmaking_queue")
       .update({ status: "matched", matched_at: now, call_id: call.id })
-      .eq("id", claimed.id);
+      .in("id", [selfQueue.id, claimed.candidate_queue_id]);
 
-    await admin
-      .from("matchmaking_queue")
-      .update({ status: "matched", matched_at: now, call_id: call.id })
-      .eq("user_id", user.id)
-      .eq("drop_id", drop_id);
+    if (finalizeErr) {
+      console.error("Queue finalize error:", finalizeErr);
+      await admin.from("calls").delete().eq("id", call.id);
+      await admin
+        .from("matchmaking_queue")
+        .update({ status: "waiting", matched_at: null, call_id: null })
+        .in("id", [selfQueue.id, claimed.candidate_queue_id]);
+      throw new Error("Failed to finalize match");
+    }
 
     return new Response(
       JSON.stringify({
@@ -179,7 +176,17 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error("find-match error:", error);
     const errorMessage = error instanceof Error ? error.message : "";
-    const safeMessages = ["Drop not found", "Drop is not live", "drop_id and room_id required", "Unauthorized", "Missing auth", "Failed to join queue", "Matchmaking temporarily unavailable", "Failed to create call"];
+    const safeMessages = [
+      "Drop not found",
+      "Drop is not live",
+      "drop_id and room_id required",
+      "Unauthorized",
+      "Missing auth",
+      "Failed to join queue",
+      "Matchmaking temporarily unavailable",
+      "Failed to create call",
+      "Failed to finalize match",
+    ];
     const msg = safeMessages.includes(errorMessage) ? errorMessage : "An error occurred";
     return new Response(
       JSON.stringify({ error: msg }),

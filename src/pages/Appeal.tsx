@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
-  ArrowLeft, AlertTriangle, Send, Mic, MicOff, Clock,
+  ArrowLeft, AlertTriangle, Send, Mic, Clock,
   Check, X, FileText, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,6 @@ interface PastAppeal {
 const Appeal = () => {
   const { user } = useAuth();
   const [explanation, setExplanation] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [hasVoiceNote, setHasVoiceNote] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -109,16 +107,6 @@ const Appeal = () => {
       toast.error("Failed to submit appeal. Please try again.");
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      setIsRecording(false);
-      setHasVoiceNote(true);
-    } else {
-      setIsRecording(true);
-      setHasVoiceNote(false);
     }
   };
 
@@ -199,41 +187,17 @@ const Appeal = () => {
                 {/* Voice note */}
                 <div className="flex items-center gap-3 mb-6">
                   <Button
-                    variant={isRecording ? "destructive" : "outline"}
+                    variant="outline"
                     size="sm"
-                    onClick={toggleRecording}
+                    disabled
                     className="gap-2"
                   >
-                    {isRecording ? (
-                      <>
-                        <MicOff className="w-3.5 h-3.5" />
-                        Stop recording
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="w-3.5 h-3.5" />
-                        Add voice note
-                      </>
-                    )}
+                    <Mic className="w-3.5 h-3.5" />
+                    Voice note (coming soon)
                   </Button>
-
-                  {isRecording && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex items-center gap-2"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                      <span className="text-xs text-muted-foreground">Recording…</span>
-                    </motion.div>
-                  )}
-
-                  {hasVoiceNote && !isRecording && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-xs text-muted-foreground">Voice note attached</span>
-                    </motion.div>
-                  )}
+                  <span className="text-xs text-muted-foreground">
+                    Submit written context for now.
+                  </span>
                 </div>
 
                 <Button

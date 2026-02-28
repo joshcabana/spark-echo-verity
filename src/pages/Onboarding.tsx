@@ -35,11 +35,11 @@ const Onboarding = () => {
 
   const saveStep = async (nextStep: number, extra: Record<string, unknown> = {}) => {
     if (!user) return;
-    await supabase.from("user_trust").upsert([{
+    await supabase.from("user_trust").upsert({
       user_id: user.id,
       onboarding_step: nextStep,
       ...extra,
-    } as any], { onConflict: "user_id" });
+    }, { onConflict: "user_id" });
   };
 
   const goTo = (nextStep: number, extra: Record<string, unknown> = {}) => {

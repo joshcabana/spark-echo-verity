@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 const principles = [
-  { title: "Privacy by design", text: "No call recordings are stored. AI moderation processes clips in memory and discards them immediately." },
+  { title: "Privacy by design", text: "No call recordings are stored. Safety checks use call metadata and transcript snippets when available." },
   { title: "Radical fairness", text: "Every moderation decision can be appealed. Every appeal is reviewed by a human, not just an algorithm." },
   { title: "Transparent metrics", text: "We publish our safety and balance statistics in real time. We believe accountability builds trust." },
   { title: "No dark patterns", text: "No infinite scrolls, no addictive loops, no hidden fees. Verity is designed to help you connect, then step away." },
