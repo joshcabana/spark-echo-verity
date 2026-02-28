@@ -51,24 +51,44 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
-    const customerEmail = user.email;
-    if (!customerEmail) {
-      return new Response(
-        JSON.stringify({ error: "No email associated with account" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const { return_url } = await req.json().catch(() => ({ return_url: undefined }));
 
-    const customers = await stripe.customers.list({ email: customerEmail, limit: 1 });
-    const customer = customers.data[0];
+    // Use stripe_customer_id from profile first, fall back to email lookup
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
-    if (!customer) {
-      return new Response(
-        JSON.stringify({ error: "No subscription found for this account" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .single();
+
+    let customerId = profile?.stripe_customer_id;
+
+    if (!customerId) {
+      const customerEmail = user.email;
+      if (!customerEmail) {
+        return new Response(
+          JSON.stringify({ error: "No email associated with account" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const customers = await stripe.customers.list({ email: customerEmail, limit: 1 });
+      if (customers.data.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "No subscription found for this account" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      customerId = customers.data[0].id;
+
+      // Cache for future lookups
+      await supabaseAdmin
+        .from("profiles")
+        .update({ stripe_customer_id: customerId })
+        .eq("user_id", user.id);
     }
 
     // Allowlist-based return URL validation

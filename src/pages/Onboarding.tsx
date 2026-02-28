@@ -33,19 +33,13 @@ const Onboarding = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userTrust, navigate]);
 
-  const saveStep = async (nextStep: number, extra: Partial<{
-    dob: string;
-    phone_verified: boolean;
-    selfie_verified: boolean;
-    safety_pledge_accepted: boolean;
-    preferences: Record<string, unknown>;
-  }> = {}) => {
+  const saveStep = async (nextStep: number, extra: Record<string, unknown> = {}) => {
     if (!user) return;
-    await supabase.from("user_trust").upsert({
+    await supabase.from("user_trust").upsert([{
       user_id: user.id,
       onboarding_step: nextStep,
       ...extra,
-    }, { onConflict: "user_id" });
+    } as any], { onConflict: "user_id" });
   };
 
   const goTo = (nextStep: number, extra: Record<string, unknown> = {}) => {
@@ -55,7 +49,7 @@ const Onboarding = () => {
 
   const handlePreferencesComplete = async (prefs: Preferences) => {
     if (!user) return;
-    await saveStep(7, { preferences: prefs });
+    await saveStep(7, { preferences: prefs as unknown as Record<string, unknown> });
     setStep(7);
   };
 

@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Home, Video, Sparkles, Coins, User } from "lucide-react";
 
 const tabs = [
-  { id: "home", label: "Home", icon: Home, path: "/" },
+  { id: "home", label: "Home", icon: Home, path: "/lobby" },
   { id: "go-live", label: "Go Live", icon: Video, path: "/lobby" },
   { id: "sparks", label: "Sparks", icon: Sparkles, path: "/sparks" },
   { id: "tokens", label: "Tokens", icon: Coins, path: "/tokens" },
