@@ -1,46 +1,41 @@
 
 
-# Implementation Plan — Profile Page + TokenShop Wiring + AI Moderation Testing
+## Logo Integration Plan
 
-## 1. Create `/profile` page
+### Challenge
+The uploaded image is a single sheet containing all logo variants (light/dark × primary/icon/horizontal). Individual variants cannot be extracted from a composite image. The app currently uses only dark mode (no light/dark toggle exists).
 
-**New file:** `src/pages/Profile.tsx`
+### Approach
+1. **Create an inline SVG `VerityLogo` component** (`src/components/VerityLogo.tsx`) that reproduces the logo mark (stylized V with coral-orange spark) and "VERITY" wordmark. The SVG will use the exact brand colours from the image:
+   - Deep navy `#1B2A4A` for V-shape (light backgrounds)
+   - White/silver `#E8EBF0` for V-shape (dark backgrounds — current app theme)
+   - Coral-orange `#E85D35` for the spark
+   - The component accepts `variant` prop: `"full"` (icon + text), `"icon"` (icon only)
+   - Uses `currentColor` or explicit fills that match the dark theme; since the app is dark-only, the dark-mode palette is primary
 
-- Display user's avatar (from `profiles.avatar_url`) with upload capability using the existing `verifications` storage bucket (or create a public `avatars` bucket)
-- Editable display name field (updates `profiles.display_name`)
-- Verification status badges from `user_trust` (phone, selfie, safety pledge)
-- Token balance from `profiles.token_balance`
-- Subscription tier + expiry from `profiles.subscription_tier` / `profiles.subscription_expires_at`
-- "Manage subscription" button that invokes `customer-portal` edge function
-- Sign out button
-- Uses `useAuth()` context for initial data, `useMutation` for updates
+2. **Copy uploaded image to `public/og-logo.png`** for use as the Open Graph image and as a reference asset.
 
-**New migration:** Create public `avatars` storage bucket with user-scoped RLS policies for upload/read.
+3. **Copy uploaded image to `public/favicon.png`** — since we cannot crop the icon-only variant from the sheet, I'll use the full image temporarily and note that you'll need to upload a separate icon-only PNG for the favicon/publish settings.
 
-**Edit:** `src/App.tsx` — add lazy-loaded `/profile` route  
-**Edit:** `src/components/BottomNav.tsx` — change Profile tab path from `/lobby` to `/profile`  
-**Edit:** `src/pages/Lobby.tsx` — change user icon navigation from `/tokens` to `/profile`
+4. **Replace all text-based "Verity" logos** across these files:
+   - `src/components/landing/Navbar.tsx` — replace text link with `<VerityLogo />` inside a `<Link to="/">`
+   - `src/components/landing/Footer.tsx` — replace text with `<VerityLogo />`
+   - `src/pages/Lobby.tsx` — replace header text with `<VerityLogo variant="icon" />`
+   - `src/pages/Auth.tsx` — replace `<h1>Verity</h1>` with `<VerityLogo />`
 
-## 2. Wire TokenShop to real Stripe checkout
+5. **Responsiveness**: SVG scales perfectly at any size. The component will accept `className` for sizing via Tailwind (`h-8`, `h-6`, etc.). Alt text handled via `aria-label`.
 
-**Edit:** `src/pages/TokenShop.tsx`
+### Files Changed
+| File | Change |
+|------|--------|
+| `src/components/VerityLogo.tsx` | **New** — SVG logo component |
+| `src/components/landing/Navbar.tsx` | Replace text with `<VerityLogo />` |
+| `src/components/landing/Footer.tsx` | Replace text with `<VerityLogo />` |
+| `src/pages/Lobby.tsx` | Replace header text with icon variant |
+| `src/pages/Auth.tsx` | Replace h1 text with logo |
+| `public/favicon.png` | Copy uploaded image (temporary — user needs to provide icon-only crop for proper favicon) |
+| `index.html` | Add favicon link tag |
 
-- Import `useAuth` to get real `profile.token_balance` and `profile.subscription_tier`
-- Add `price_id` to each token pack config: `"price_starter_10"`, `"price_popular_15"`, `"price_value_30"`
-- Replace `handleBuyTokens` with `supabase.functions.invoke("create-checkout", { body: { price_id } })` → redirect to `data.url`
-- Replace `handleSubscribe` with same invoke using `billingCycle === "monthly" ? "price_pass_monthly" : "price_pass_annual"`
-- Wire "Manage subscription" button to invoke `customer-portal` → redirect to `data.url`
-- Handle `?success=true` query param on mount to show `PurchaseSuccess`
-- Add loading states during checkout creation
-
-## 3. AI moderation testing
-
-Since end-to-end testing of `ai-moderate` requires two authenticated users in a live call (participation check), this cannot be fully automated. The function is already deployed. Instead, the plan confirms the wiring is complete and suggests manual verification steps post-implementation.
-
-## Implementation Order
-
-1. DB migration: `avatars` storage bucket
-2. Create `Profile.tsx`
-3. Update routing (`App.tsx`, `BottomNav.tsx`, `Lobby.tsx`)
-4. Wire `TokenShop.tsx` to real checkout
+### Important Note
+Since the uploaded image is a composite sheet (not individual assets), the SVG component will be hand-crafted to match the design. For a pixel-perfect match, you would ideally provide the individual logo files (e.g., separate dark-mode horizontal PNG/SVG). The SVG I create will faithfully reproduce the V-spark-wordmark design with the exact colour values from the image.
 
