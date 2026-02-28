@@ -1,32 +1,26 @@
 
 
-## Light/Dark Mode Polish — CSS Variable Alignment
+## Update VerityLogo SVG to Match New Brand Mark
 
-Most of the infrastructure is already in place (next-themes provider, ThemeToggle component, VerityLogo with `currentColor`, smooth transitions). The only work needed is fine-tuning CSS variable values to match the exact requested hex codes.
+The uploaded image shows a dramatically different logo: a stylized V with angular wing-like extensions and a detailed multi-pointed starburst/spark in gold, replacing the current simple V-stroke + circle.
 
-### Current vs Requested Values
+### What Changes
 
-| Token | Current (Light) | Requested | Change |
-|-------|----------------|-----------|--------|
-| `--background` | `0 0% 98%` (#FAFAFA) | `0 0% 100%` (#FFFFFF) or `0 0% 97%` (#F8F9FA) | Update to `0 0% 97%` |
-| `--card` | `0 0% 100%` (#FFFFFF) | `0 0% 95%` (#F3F3F3) | Update |
-| `--border` | `0 0% 90%` (#E6E6E6) | `0 0% 90%` (#E5E5E5) | ✓ Already matches |
+**`src/components/VerityLogo.tsx`** — Complete SVG path replacement:
 
-| Token | Current (Dark) | Requested | Change |
-|-------|---------------|-----------|--------|
-| `--background` | `0 0% 4%` (#0A0A0A) | `0 0% 7%` (#121212) | Update |
-| `--card` | `0 0% 9%` (#171717) | `0 0% 13%` (#212121) | Update |
-| `--border` | `0 0% 15%` (#262626) | `0 0% 15%` (#262626) | ✓ Already matches |
+1. **New V shape**: Angular, wing-tipped V with curved horns extending outward at the top and a rounded pointed base. Rendered as a filled shape (not a stroke) using `currentColor` so it adapts to light (#212121) and dark (#F3F3F3) themes automatically.
 
-### Files to Change
+2. **New spark**: Replace the simple gold circle with a detailed multi-pointed starburst centered over the V intersection, filled with `#D4AF37`.
 
-**`src/index.css`** — Adjust ~8 CSS variable values in `:root` and `.dark` blocks to match the exact hex codes. Update related variables (`--popover`, `--secondary`, `--muted`, `--sidebar-*`, gradients, shadows) to stay consistent with the new base values.
+3. **Dark mode glow**: Add an optional SVG `<filter>` with a subtle golden outer glow that activates in dark mode via a CSS class (`dark` parent detection), matching the right-side version in the image.
 
-### Already Implemented (No Changes Needed)
-- ✅ `next-themes` with `attribute="class"`, `enableSystem`, `defaultTheme="dark"` — handles localStorage + system preference
-- ✅ `ThemeToggle` with Sun/Moon icons in the navbar
-- ✅ `VerityLogo` uses `currentColor` for V + text, hardcoded `#D4AF37` for spark
-- ✅ Smooth `transition: background-color 0.3s ease, color 0.3s ease` on `html` and `body`
-- ✅ Gold `#D4AF37` as `--primary` / `--accent` in both themes
-- ✅ All components use semantic Tailwind tokens (`bg-background`, `text-foreground`, `bg-card`, etc.)
+4. **Both variants updated**: The `"icon"` variant gets the new mark alone; the `"full"` variant keeps the mark + "VERITY" wordmark text.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `src/components/VerityLogo.tsx` | Replace SVG paths for both icon and full variants |
+
+No other files need changes — all consumers already reference `<VerityLogo />` with the correct props.
 
