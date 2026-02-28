@@ -12,6 +12,19 @@ import BottomNav from "@/components/BottomNav";
 import { isToday, isThisWeek } from "date-fns";
 import { toast } from "sonner";
 
+interface Drop {
+  id: string;
+  title: string;
+  description: string | null;
+  scheduled_at: string;
+  duration_minutes: number;
+  max_capacity: number;
+  status: string;
+  room_id: string;
+  rooms?: { name: string } | null;
+  is_friendfluence: boolean;
+}
+
 const Lobby = () => {
   const { user, userTrust } = useAuth();
   const queryClient = useQueryClient();
@@ -31,7 +44,7 @@ const Lobby = () => {
   );
 
   // Fetch drops
-  const { data: drops = [] } = useQuery({
+  const { data: drops = [] } = useQuery<Drop[]>({
     queryKey: ["drops"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -40,7 +53,7 @@ const Lobby = () => {
         .in("status", ["upcoming", "live"])
         .order("scheduled_at", { ascending: true });
       if (error) throw error;
-      return data;
+      return data as Drop[];
     },
   });
 
@@ -61,10 +74,10 @@ const Lobby = () => {
 
   // Fetch RSVP counts
   const { data: rsvpCounts = {} } = useQuery({
-    queryKey: ["rsvp-counts", drops.map((d: any) => d.id).join(",")],
+    queryKey: ["rsvp-counts", drops.map((d) => d.id).join(",")],
     queryFn: async () => {
       if (drops.length === 0) return {};
-      const dropIds = drops.map((d: any) => d.id);
+      const dropIds = drops.map((d) => d.id);
       const { data, error } = await supabase
         .from("drop_rsvps")
         .select("drop_id")
@@ -111,7 +124,7 @@ const Lobby = () => {
   });
 
   // Join live drop
-  const handleJoin = useCallback(async (drop: any) => {
+  const handleJoin = useCallback(async (drop: Drop) => {
     if (!user) return;
 
     if (!trustComplete) {
@@ -138,8 +151,9 @@ const Lobby = () => {
         navigate(`/call/${data.call_id}?channel=${encodeURIComponent(data.agora_channel)}`);
       }
       // If queued, overlay stays open and polls
-    } catch (err: any) {
-      toast.error(err.message || "Failed to join drop");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to join drop";
+      toast.error(message);
       setMatchmaking((m) => ({ ...m, active: false }));
     }
   }, [user, trustComplete, navigate]);
@@ -160,14 +174,14 @@ const Lobby = () => {
   }, [queryClient]);
 
   // Filter drops
-  const filtered = drops.filter((d: any) => {
+  const filtered = drops.filter((d) => {
     if (filter === "today") return isToday(new Date(d.scheduled_at));
     if (filter === "week") return isThisWeek(new Date(d.scheduled_at));
     if (filter === "my-rsvps") return rsvps.includes(d.id);
     return true;
   });
 
-  const nextRsvp = drops.find((d: any) => rsvps.includes(d.id));
+  const nextRsvp = drops.find((d) => rsvps.includes(d.id));
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -206,12 +220,12 @@ const Lobby = () => {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="mb-6 p-4 rounded-2xl border border-primary/20 bg-primary/5">
             <span className="text-[10px] uppercase tracking-luxury text-primary block mb-1">Your next Drop</span>
-            <p className="font-serif text-foreground">{(nextRsvp as any).title}</p>
+            <p className="font-serif text-foreground">{nextRsvp.title}</p>
           </motion.div>
         )}
 
         <div className="space-y-4">
-          {filtered.map((drop: any, i: number) => (
+          {filtered.map((drop, i) => (
             <DropCard
               key={drop.id}
               drop={drop}
