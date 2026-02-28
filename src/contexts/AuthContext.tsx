@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface UserTrust {
   id: string;
@@ -17,7 +18,7 @@ interface UserTrust {
 interface AuthContextType {
   session: Session | null;
   user: User | null;
-  profile: any | null;
+  profile: Tables<"profiles"> | null;
   userTrust: UserTrust | null;
   isLoading: boolean;
   isAdmin: boolean;
@@ -41,33 +42,21 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
   const [userTrust, setUserTrust] = useState<UserTrust | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchUserData = async (userId: string) => {
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-    setProfile(profileData);
+    const [profileRes, trustRes, roleRes] = await Promise.all([
+      supabase.from("profiles").select("*").eq("user_id", userId).single(),
+      supabase.from("user_trust").select("*").eq("user_id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
+    ]);
 
-    const { data: trustData } = await supabase
-      .from("user_trust")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-    setUserTrust(trustData as UserTrust | null);
-
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    setIsAdmin(!!roleData);
+    setProfile(profileRes.data);
+    setUserTrust(trustRes.data as UserTrust | null);
+    setIsAdmin(!!roleRes.data);
   };
 
   useEffect(() => {

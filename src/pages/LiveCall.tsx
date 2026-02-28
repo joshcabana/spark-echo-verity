@@ -112,7 +112,7 @@ const LiveCall = () => {
     };
 
     fetchCall();
-  }, [callId, user]);
+  }, [callId, user, navigate, channelFromUrl]);
 
   // When Agora joins, start the live phase
   useEffect(() => {

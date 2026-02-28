@@ -64,14 +64,15 @@ const Lobby = () => {
     queryKey: ["rsvp-counts", drops.map((d: any) => d.id).join(",")],
     queryFn: async () => {
       if (drops.length === 0) return {};
+      const dropIds = drops.map((d: any) => d.id);
+      const { data, error } = await supabase
+        .from("drop_rsvps")
+        .select("drop_id")
+        .in("drop_id", dropIds);
+      if (error) throw error;
       const counts: Record<string, number> = {};
-      for (const drop of drops) {
-        const { count } = await supabase
-          .from("drop_rsvps")
-          .select("*", { count: "exact", head: true })
-          .eq("drop_id", (drop as any).id);
-        counts[(drop as any).id] = count ?? 0;
-      }
+      for (const id of dropIds) counts[id] = 0;
+      for (const row of data ?? []) counts[row.drop_id] = (counts[row.drop_id] || 0) + 1;
       return counts;
     },
     enabled: drops.length > 0,
