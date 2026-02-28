@@ -10,6 +10,7 @@ const corsHeaders = {
 const ALLOWED_ORIGINS = [
   "https://spark-echo-verity.lovable.app",
   "https://id-preview--a81e90ba-a208-41e2-bf07-a3adfb94bfcb.lovable.app",
+  "https://getverity.com.au",
 ];
 
 // Allowlisted price IDs → mode mapping
@@ -77,13 +78,44 @@ serve(async (req) => {
     const success_url = `${safeOrigin}/tokens?success=true`;
     const cancel_url = `${safeOrigin}/tokens`;
 
+    // Use existing stripe_customer_id or create a new Stripe customer
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .single();
+
+    let customerId = profile?.stripe_customer_id;
+
+    if (!customerId) {
+      // Check if a Stripe customer with this email already exists
+      const existingCustomers = await stripe.customers.list({ email: user.email, limit: 1 });
+      if (existingCustomers.data.length > 0) {
+        customerId = existingCustomers.data[0].id;
+      } else {
+        const newCustomer = await stripe.customers.create({ email: user.email });
+        customerId = newCustomer.id;
+      }
+
+      // Cache stripe_customer_id for future lookups
+      await supabaseAdmin
+        .from("profiles")
+        .update({ stripe_customer_id: customerId })
+        .eq("user_id", user.id);
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [{ price: price_id, quantity: 1 }],
       mode: priceConfig.mode,
       success_url,
       cancel_url,
-      customer_email: user.email,
+      customer: customerId,
     });
 
     return new Response(

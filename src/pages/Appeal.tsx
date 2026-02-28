@@ -1,29 +1,115 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft, AlertTriangle, Send, Mic, MicOff, Clock,
-  Check, X, FileText
+  Check, X, FileText, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
-const pastAppeals = [
-  { id: "a-1", reason: "Language flagged during discussion about film dialogue", status: "upheld" as const, date: "12 Feb 2026", response: "Our review confirmed a false positive. Your account has been fully restored." },
-  { id: "a-2", reason: "Camera obstruction detected", status: "denied" as const, date: "28 Jan 2026", response: "The footage confirmed the camera was intentionally obscured during the call." },
-];
+interface ModerationFlag {
+  id: string;
+  reason: string | null;
+  ai_confidence: number | null;
+  created_at: string;
+}
+
+interface PastAppeal {
+  id: string;
+  explanation: string;
+  status: "pending" | "upheld" | "denied";
+  created_at: string;
+  admin_response: string | null;
+  flag_id: string | null;
+}
 
 const Appeal = () => {
+  const { user } = useAuth();
   const [explanation, setExplanation] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [hasVoiceNote, setHasVoiceNote] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const hasPendingFlag = true;
+  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleSubmit = () => {
-    if (!explanation.trim()) return;
-    setSubmitted(true);
+  const [pendingFlag, setPendingFlag] = useState<ModerationFlag | null>(null);
+  const [pastAppeals, setPastAppeals] = useState<PastAppeal[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+
+      // Fetch pending flags (not yet appealed) for this user
+      const { data: flags } = await supabase
+        .from("moderation_flags")
+        .select("id, reason, ai_confidence, created_at")
+        .eq("flagged_user_id", user.id)
+        .is("action_taken", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      // Check if any of these flags already have an appeal
+      if (flags && flags.length > 0) {
+        const { data: existingAppeal } = await supabase
+          .from("appeals")
+          .select("id")
+          .eq("flag_id", flags[0].id)
+          .limit(1);
+
+        if (!existingAppeal || existingAppeal.length === 0) {
+          setPendingFlag(flags[0]);
+        }
+      }
+
+      // Fetch past appeals
+      const { data: appeals } = await supabase
+        .from("appeals")
+        .select("id, explanation, status, created_at, admin_response, flag_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      setPastAppeals((appeals as PastAppeal[]) || []);
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [user]);
+
+  const handleSubmit = async () => {
+    if (!explanation.trim() || !user || !pendingFlag) return;
+    setSubmitting(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      const res = await supabase.functions.invoke("submit-appeal", {
+        body: {
+          explanation: explanation.trim(),
+          flag_id: pendingFlag.id,
+          voice_note_url: null,
+        },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      if (res.error) throw res.error;
+
+      setSubmitted(true);
+      setPendingFlag(null);
+      toast.success("Appeal submitted successfully");
+    } catch (err) {
+      console.error("Appeal submission error:", err);
+      toast.error("Failed to submit appeal. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const toggleRecording = () => {
@@ -35,6 +121,22 @@ const Appeal = () => {
       setHasVoiceNote(false);
     }
   };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,7 +155,7 @@ const Appeal = () => {
       <main className="container max-w-2xl mx-auto px-5 py-8">
         <AnimatePresence mode="wait">
           {/* ═══ ACTIVE FLAG — SUBMIT FORM ═══ */}
-          {hasPendingFlag && !submitted && (
+          {pendingFlag && !submitted && (
             <motion.div
               key="form"
               initial={{ opacity: 0, y: 12 }}
@@ -71,7 +173,8 @@ const Appeal = () => {
                       This is a preliminary flag — your account remains active while we review.
                     </p>
                     <p className="text-xs text-muted-foreground/40 mt-3">
-                      Reason: Language pattern flagged as potentially aggressive (AI confidence: 64%)
+                      Reason: {pendingFlag.reason || "Unspecified"}
+                      {pendingFlag.ai_confidence != null && ` (AI confidence: ${Math.round(pendingFlag.ai_confidence)}%)`}
                     </p>
                   </div>
                 </div>
@@ -138,10 +241,14 @@ const Appeal = () => {
                   size="lg"
                   className="w-full"
                   onClick={handleSubmit}
-                  disabled={!explanation.trim()}
+                  disabled={!explanation.trim() || submitting}
                 >
-                  <Send className="w-4 h-4 mr-2" />
-                  Submit appeal
+                  {submitting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 mr-2" />
+                  )}
+                  {submitting ? "Submitting…" : "Submit appeal"}
                 </Button>
 
                 <p className="text-[11px] text-muted-foreground/35 text-center mt-3">
@@ -173,6 +280,25 @@ const Appeal = () => {
               </Badge>
             </motion.div>
           )}
+
+          {/* ═══ NO PENDING FLAGS ═══ */}
+          {!pendingFlag && !submitted && (
+            <motion.div
+              key="no-flag"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center py-10"
+            >
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5">
+                <Check className="w-6 h-6 text-primary" />
+              </div>
+              <h2 className="font-serif text-2xl text-foreground mb-2">All clear</h2>
+              <p className="text-sm text-muted-foreground/60 max-w-sm mx-auto leading-relaxed">
+                You have no pending flags on your account. If you are flagged in the future,
+                you'll be able to submit an appeal here.
+              </p>
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* ═══ PAST APPEALS ═══ */}
@@ -200,26 +326,32 @@ const Appeal = () => {
                   className="rounded-lg border border-border bg-card p-5"
                 >
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <p className="text-sm text-foreground/80">{appeal.reason}</p>
+                    <p className="text-sm text-foreground/80">{appeal.explanation}</p>
                     <Badge
                       variant="outline"
                       className={`text-[10px] flex-shrink-0 ${
                         appeal.status === "upheld"
                           ? "text-primary border-primary/30"
-                          : "text-destructive border-destructive/30"
+                          : appeal.status === "denied"
+                          ? "text-destructive border-destructive/30"
+                          : "text-muted-foreground border-border"
                       }`}
                     >
                       {appeal.status === "upheld" ? (
                         <><Check className="w-2.5 h-2.5 mr-1" /> Upheld</>
-                      ) : (
+                      ) : appeal.status === "denied" ? (
                         <><X className="w-2.5 h-2.5 mr-1" /> Denied</>
+                      ) : (
+                        <><Clock className="w-2.5 h-2.5 mr-1" /> Pending</>
                       )}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground/50 mb-2">{appeal.date}</p>
-                  <p className="text-xs text-muted-foreground/60 leading-relaxed italic">
-                    "{appeal.response}"
-                  </p>
+                  <p className="text-xs text-muted-foreground/50 mb-2">{formatDate(appeal.created_at)}</p>
+                  {appeal.admin_response && (
+                    <p className="text-xs text-muted-foreground/60 leading-relaxed italic">
+                      "{appeal.admin_response}"
+                    </p>
+                  )}
                 </motion.div>
               ))}
             </div>
