@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, UserPlus, LogOut, Phone, Flag } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -35,6 +35,37 @@ interface CallRecord {
   is_mutual_spark?: boolean | null;
 }
 
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  length: number;
+  [index: number]: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionCtor;
+  webkitSpeechRecognition?: SpeechRecognitionCtor;
+};
+
 const CALL_DURATION = 45;
 
 const LiveCall = () => {
@@ -51,6 +82,9 @@ const LiveCall = () => {
   const [exitOpen, setExitOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [myChoice, setMyChoice] = useState<"spark" | "pass" | null>(null);
+  const [transcriptBuffer, setTranscriptBuffer] = useState("");
+  const [transcriptAvailable, setTranscriptAvailable] = useState(false);
+  const lastModerationTickRef = useRef(0);
 
   // Call data from DB
   const [callData, setCallData] = useState<CallRecord | null>(null);
@@ -147,32 +181,95 @@ const LiveCall = () => {
     return () => clearInterval(t);
   }, [phase, secondsLeft]);
 
+  // Capture live speech transcript when browser speech APIs are available.
+  useEffect(() => {
+    if (phase !== "live" || !micOn) return;
+
+    const speechWindow = window as SpeechRecognitionWindow;
+    const SpeechRecognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setTranscriptAvailable(false);
+      return;
+    }
+
+    setTranscriptAvailable(true);
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.onerror = () => {
+      // Fail open: moderation keeps metadata checks if speech APIs fail.
+    };
+    recognition.onresult = (event) => {
+      let nextChunk = "";
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        if (result?.isFinal && result[0]?.transcript) {
+          nextChunk += `${result[0].transcript.trim()} `;
+        }
+      }
+
+      if (nextChunk.trim()) {
+        setTranscriptBuffer((prev) => `${prev} ${nextChunk}`.trim());
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch {
+      // Some browsers throw when start is called repeatedly.
+    }
+
+    return () => {
+      recognition.onresult = null;
+      recognition.onerror = null;
+      try {
+        recognition.stop();
+      } catch {
+        // Ignore stop errors during teardown.
+      }
+    };
+  }, [phase, micOn]);
+
+  useEffect(() => {
+    if (phase !== "live") {
+      lastModerationTickRef.current = 0;
+      setTranscriptBuffer("");
+    }
+  }, [phase]);
+
   // Periodic AI moderation check every 15s during live phase
   useEffect(() => {
     if (phase !== 'live' || !callId || !user) return;
-    if (elapsed > 0 && elapsed % 15 === 0) {
-      supabase.functions.invoke('ai-moderate', {
-        body: {
-          call_id: callId,
+    if (elapsed <= 0 || elapsed % 15 !== 0) return;
+    if (lastModerationTickRef.current === elapsed) return;
+
+    lastModerationTickRef.current = elapsed;
+    const textToSend = transcriptBuffer.trim();
+    setTranscriptBuffer("");
+
+    supabase.functions.invoke('ai-moderate', {
+      body: {
+        call_id: callId,
+        transcript: textToSend,
+        elapsed_seconds: elapsed,
+        user_id: user.id,
+        partner_id: partnerId,
+        channel: channelFromUrl,
+        metadata: {
           elapsed_seconds: elapsed,
-          user_id: user.id,
-          partner_id: partnerId,
-          channel: channelFromUrl,
-          metadata: {
-            elapsed_seconds: elapsed,
-            my_role: myRole,
-            is_remote_connected: isRemoteConnected,
-          },
+          my_role: myRole,
+          is_remote_connected: isRemoteConnected,
+          transcript_available: transcriptAvailable,
         },
-      }).then(({ data }) => {
-        if (data?.flagged) {
-          toast.warning('Safety check flagged this call. Our team will review.');
-        }
-      }).catch(() => {
-        // Silent fail — moderation must not interrupt call UX
-      });
-    }
-  }, [phase, elapsed, callId, user, partnerId, channelFromUrl, myRole, isRemoteConnected]);
+      },
+    }).then(({ data }) => {
+      if (data?.flagged) {
+        toast.warning('Safety check flagged this call. Our team will review.');
+      }
+    }).catch(() => {
+      // Silent fail — moderation must not interrupt call UX
+    });
+  }, [phase, elapsed, callId, user, partnerId, channelFromUrl, myRole, isRemoteConnected, transcriptBuffer, transcriptAvailable]);
 
   // Handle choice: write to calls table
   const handleChoice = useCallback(async (choice: "spark" | "pass") => {

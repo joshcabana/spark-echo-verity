@@ -16,9 +16,9 @@ const features = [
   },
   {
     icon: Brain,
-    title: "Real-Time AI Safety",
+    title: "Live Safety Checks",
     description:
-      "Continuous moderation analyses frames in real time. Nothing is stored unless you report — then only 30 seconds of ephemeral buffer, deleted within 30 days.",
+      "During live calls, Verity runs safety checks using transcript snippets (where browser support exists) and call metadata. No raw call video is stored.",
   },
   {
     icon: Compass,
