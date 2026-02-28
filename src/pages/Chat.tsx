@@ -90,6 +90,20 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Mark unread partner messages as read
+  useEffect(() => {
+    if (!user || !messages.length) return;
+    const unreadIds = messages
+      .filter((m) => m.sender_id !== user.id && m.is_read === false)
+      .map((m) => m.id);
+    if (unreadIds.length === 0) return;
+    supabase
+      .from("messages")
+      .update({ is_read: true })
+      .in("id", unreadIds)
+      .then();
+  }, [messages, user]);
+
   const handleSend = useCallback(async (text: string) => {
     if (!user || !sparkId) return;
     const { error } = await supabase.from("messages").insert({

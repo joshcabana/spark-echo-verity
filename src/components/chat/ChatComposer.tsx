@@ -6,6 +6,8 @@ interface ChatComposerProps {
   onSend: (text: string) => void;
 }
 
+const MAX_CHARS = 1000;
+
 const ChatComposer = ({ onSend }: ChatComposerProps) => {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -36,6 +38,8 @@ const ChatComposer = ({ onSend }: ChatComposerProps) => {
   }, [text]);
 
   const hasText = text.trim().length > 0;
+  const remaining = MAX_CHARS - text.length;
+  const showCounter = remaining <= 100;
 
   return (
     <motion.div
@@ -49,12 +53,20 @@ const ChatComposer = ({ onSend }: ChatComposerProps) => {
           <textarea
             ref={textareaRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              if (e.target.value.length <= MAX_CHARS) setText(e.target.value);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Write a message…"
             rows={1}
+            maxLength={MAX_CHARS}
             className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none leading-relaxed max-h-[120px]"
           />
+          {showCounter && (
+            <p className={`text-[10px] text-right ${remaining <= 20 ? "text-destructive" : "text-muted-foreground/50"}`}>
+              {remaining}
+            </p>
+          )}
         </div>
 
         {hasText ? (
