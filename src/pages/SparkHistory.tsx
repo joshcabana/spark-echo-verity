@@ -10,11 +10,23 @@ import BottomNav from "@/components/BottomNav";
 const filters = ["All", "This Week", "Archived"] as const;
 type Filter = (typeof filters)[number];
 
+interface SparkWithPartner {
+  id: string;
+  call_id: string;
+  user_a: string;
+  user_b: string;
+  created_at: string;
+  is_archived: boolean | null;
+  ai_insight: string | null;
+  partner_id: string;
+  partner_name: string;
+}
+
 const SparkHistory = () => {
   const { user } = useAuth();
   const [active, setActive] = useState<Filter>("All");
 
-  const { data: sparks = [] } = useQuery({
+  const { data: sparks = [] } = useQuery<SparkWithPartner[]>({
     queryKey: ["sparks", user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -26,26 +38,26 @@ const SparkHistory = () => {
       if (error) throw error;
 
       // Get partner display names
-      const partnerIds = (data || []).map((s: any) =>
+      const partnerIds = (data || []).map((s) =>
         s.user_a === user.id ? s.user_b : s.user_a
       );
       const uniqueIds = [...new Set(partnerIds)];
 
-      let profileMap: Record<string, string> = {};
+      const profileMap: Record<string, string> = {};
       if (uniqueIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, display_name")
           .in("user_id", uniqueIds);
         if (profiles) {
-          profiles.forEach((p: any) => {
+          profiles.forEach((p) => {
             const firstName = p.display_name?.split(" ")[0] || "Spark";
             profileMap[p.user_id] = firstName;
           });
         }
       }
 
-      return (data || []).map((s: any) => {
+      return (data || []).map((s) => {
         const partnerId = s.user_a === user.id ? s.user_b : s.user_a;
         return {
           ...s,
@@ -57,7 +69,7 @@ const SparkHistory = () => {
     enabled: !!user,
   });
 
-  const filtered = sparks.filter((s: any) => {
+  const filtered = sparks.filter((s) => {
     if (active === "Archived") return s.is_archived;
     if (active === "This Week") {
       return !s.is_archived && Date.now() - new Date(s.created_at).getTime() < 7 * 24 * 60 * 60 * 1000;
@@ -93,7 +105,7 @@ const SparkHistory = () => {
           <SparkEmptyState />
         ) : (
           <div className="space-y-3">
-            {filtered.map((spark: any, i: number) => (
+            {filtered.map((spark, i) => (
               <SparkCard key={spark.id} spark={spark} index={i} />
             ))}
           </div>

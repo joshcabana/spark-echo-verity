@@ -80,7 +80,7 @@ serve(async (req) => {
     // Filter out blocked users
     let matchedCandidate = null;
     if (candidates && candidates.length > 0) {
-      const candidateIds = candidates.map((c: any) => c.user_id);
+      const candidateIds = candidates.map((c: { id: string; user_id: string }) => c.user_id);
 
       // Get blocks where current user blocked candidates
       const { data: blocksOutgoing } = await admin
@@ -104,7 +104,7 @@ serve(async (req) => {
         for (const b of blocksIncoming) blockedSet.add(b.blocker_id);
       }
 
-      matchedCandidate = candidates.find((c: any) => !blockedSet.has(c.user_id));
+      matchedCandidate = candidates.find((c: { id: string; user_id: string }) => !blockedSet.has(c.user_id));
     }
 
     if (!matchedCandidate) {
@@ -176,10 +176,11 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("find-match error:", error);
+    const errorMessage = error instanceof Error ? error.message : "";
     const safeMessages = ["Drop not found", "Drop is not live", "drop_id and room_id required", "Unauthorized", "Missing auth", "Failed to join queue", "Matchmaking temporarily unavailable", "Failed to create call"];
-    const msg = safeMessages.includes(error.message) ? error.message : "An error occurred";
+    const msg = safeMessages.includes(errorMessage) ? errorMessage : "An error occurred";
     return new Response(
       JSON.stringify({ error: msg }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

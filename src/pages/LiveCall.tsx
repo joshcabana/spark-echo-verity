@@ -236,7 +236,7 @@ const LiveCall = () => {
     setExitOpen(false);
     await leave();
     navigate("/lobby");
-  }, [navigate, leave, callId]);
+  }, [navigate, leave]);
 
   // Handle report
   const handleReport = useCallback(async (reason: string) => {

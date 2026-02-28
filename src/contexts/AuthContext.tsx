@@ -12,7 +12,7 @@ interface UserTrust {
   safety_pledge_accepted: boolean;
   onboarding_step: number;
   onboarding_complete: boolean;
-  preferences: Record<string, any>;
+  preferences: Record<string, unknown>;
 }
 
 interface AuthContextType {

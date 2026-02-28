@@ -23,7 +23,7 @@ interface DropCardProps {
   isRsvpd: boolean;
   onRsvp: (dropId: string) => void;
   onCancel: (dropId: string) => void;
-  onJoin: (drop: any) => void;
+  onJoin: (drop: DropCardProps["drop"]) => void;
   trustComplete: boolean;
   index: number;
 }
