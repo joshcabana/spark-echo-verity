@@ -1,41 +1,32 @@
 
 
-## Logo Integration Plan
+## Light/Dark Mode Polish — CSS Variable Alignment
 
-### Challenge
-The uploaded image is a single sheet containing all logo variants (light/dark × primary/icon/horizontal). Individual variants cannot be extracted from a composite image. The app currently uses only dark mode (no light/dark toggle exists).
+Most of the infrastructure is already in place (next-themes provider, ThemeToggle component, VerityLogo with `currentColor`, smooth transitions). The only work needed is fine-tuning CSS variable values to match the exact requested hex codes.
 
-### Approach
-1. **Create an inline SVG `VerityLogo` component** (`src/components/VerityLogo.tsx`) that reproduces the logo mark (stylized V with coral-orange spark) and "VERITY" wordmark. The SVG will use the exact brand colours from the image:
-   - Deep navy `#1B2A4A` for V-shape (light backgrounds)
-   - White/silver `#E8EBF0` for V-shape (dark backgrounds — current app theme)
-   - Coral-orange `#E85D35` for the spark
-   - The component accepts `variant` prop: `"full"` (icon + text), `"icon"` (icon only)
-   - Uses `currentColor` or explicit fills that match the dark theme; since the app is dark-only, the dark-mode palette is primary
+### Current vs Requested Values
 
-2. **Copy uploaded image to `public/og-logo.png`** for use as the Open Graph image and as a reference asset.
+| Token | Current (Light) | Requested | Change |
+|-------|----------------|-----------|--------|
+| `--background` | `0 0% 98%` (#FAFAFA) | `0 0% 100%` (#FFFFFF) or `0 0% 97%` (#F8F9FA) | Update to `0 0% 97%` |
+| `--card` | `0 0% 100%` (#FFFFFF) | `0 0% 95%` (#F3F3F3) | Update |
+| `--border` | `0 0% 90%` (#E6E6E6) | `0 0% 90%` (#E5E5E5) | ✓ Already matches |
 
-3. **Copy uploaded image to `public/favicon.png`** — since we cannot crop the icon-only variant from the sheet, I'll use the full image temporarily and note that you'll need to upload a separate icon-only PNG for the favicon/publish settings.
+| Token | Current (Dark) | Requested | Change |
+|-------|---------------|-----------|--------|
+| `--background` | `0 0% 4%` (#0A0A0A) | `0 0% 7%` (#121212) | Update |
+| `--card` | `0 0% 9%` (#171717) | `0 0% 13%` (#212121) | Update |
+| `--border` | `0 0% 15%` (#262626) | `0 0% 15%` (#262626) | ✓ Already matches |
 
-4. **Replace all text-based "Verity" logos** across these files:
-   - `src/components/landing/Navbar.tsx` — replace text link with `<VerityLogo />` inside a `<Link to="/">`
-   - `src/components/landing/Footer.tsx` — replace text with `<VerityLogo />`
-   - `src/pages/Lobby.tsx` — replace header text with `<VerityLogo variant="icon" />`
-   - `src/pages/Auth.tsx` — replace `<h1>Verity</h1>` with `<VerityLogo />`
+### Files to Change
 
-5. **Responsiveness**: SVG scales perfectly at any size. The component will accept `className` for sizing via Tailwind (`h-8`, `h-6`, etc.). Alt text handled via `aria-label`.
+**`src/index.css`** — Adjust ~8 CSS variable values in `:root` and `.dark` blocks to match the exact hex codes. Update related variables (`--popover`, `--secondary`, `--muted`, `--sidebar-*`, gradients, shadows) to stay consistent with the new base values.
 
-### Files Changed
-| File | Change |
-|------|--------|
-| `src/components/VerityLogo.tsx` | **New** — SVG logo component |
-| `src/components/landing/Navbar.tsx` | Replace text with `<VerityLogo />` |
-| `src/components/landing/Footer.tsx` | Replace text with `<VerityLogo />` |
-| `src/pages/Lobby.tsx` | Replace header text with icon variant |
-| `src/pages/Auth.tsx` | Replace h1 text with logo |
-| `public/favicon.png` | Copy uploaded image (temporary — user needs to provide icon-only crop for proper favicon) |
-| `index.html` | Add favicon link tag |
-
-### Important Note
-Since the uploaded image is a composite sheet (not individual assets), the SVG component will be hand-crafted to match the design. For a pixel-perfect match, you would ideally provide the individual logo files (e.g., separate dark-mode horizontal PNG/SVG). The SVG I create will faithfully reproduce the V-spark-wordmark design with the exact colour values from the image.
+### Already Implemented (No Changes Needed)
+- ✅ `next-themes` with `attribute="class"`, `enableSystem`, `defaultTheme="dark"` — handles localStorage + system preference
+- ✅ `ThemeToggle` with Sun/Moon icons in the navbar
+- ✅ `VerityLogo` uses `currentColor` for V + text, hardcoded `#D4AF37` for spark
+- ✅ Smooth `transition: background-color 0.3s ease, color 0.3s ease` on `html` and `body`
+- ✅ Gold `#D4AF37` as `--primary` / `--accent` in both themes
+- ✅ All components use semantic Tailwind tokens (`bg-background`, `text-foreground`, `bg-card`, etc.)
 
