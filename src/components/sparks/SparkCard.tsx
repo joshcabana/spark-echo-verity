@@ -5,7 +5,7 @@ import { User } from "lucide-react";
 interface SparkData {
   id: string;
   created_at: string;
-  is_archived: boolean;
+  is_archived: boolean | null;
   partner_name: string;
 }
 

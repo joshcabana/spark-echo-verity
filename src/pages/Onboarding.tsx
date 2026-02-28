@@ -10,7 +10,7 @@ import SignInStep from "@/components/onboarding/SignInStep";
 import PhoneVerifyStep from "@/components/onboarding/PhoneVerifyStep";
 import SelfieStep from "@/components/onboarding/SelfieStep";
 import SafetyPledgeStep from "@/components/onboarding/SafetyPledgeStep";
-import PreferencesStep from "@/components/onboarding/PreferencesStep";
+import PreferencesStep, { type Preferences } from "@/components/onboarding/PreferencesStep";
 import DropReadyStep from "@/components/onboarding/DropReadyStep";
 
 const TOTAL_STEPS = 8;
@@ -30,14 +30,15 @@ const Onboarding = () => {
     if (userTrust?.onboarding_step && userTrust.onboarding_step > step) {
       setStep(userTrust.onboarding_step);
     }
-  }, [userTrust]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userTrust, navigate]);
 
   const saveStep = async (nextStep: number, extra: Partial<{
     dob: string;
     phone_verified: boolean;
     selfie_verified: boolean;
     safety_pledge_accepted: boolean;
-    preferences: Record<string, any>;
+    preferences: Record<string, unknown>;
   }> = {}) => {
     if (!user) return;
     await supabase.from("user_trust").upsert({
@@ -47,12 +48,12 @@ const Onboarding = () => {
     }, { onConflict: "user_id" });
   };
 
-  const goTo = (nextStep: number, extra: Record<string, any> = {}) => {
+  const goTo = (nextStep: number, extra: Record<string, unknown> = {}) => {
     saveStep(nextStep, extra);
     setStep(nextStep);
   };
 
-  const handlePreferencesComplete = async (prefs: Record<string, any>) => {
+  const handlePreferencesComplete = async (prefs: Preferences) => {
     if (!user) return;
     await saveStep(7, { preferences: prefs });
     setStep(7);
@@ -65,7 +66,7 @@ const Onboarding = () => {
         user_id: user.id,
         onboarding_step: TOTAL_STEPS,
         onboarding_complete: true,
-      } as any,
+      },
       { onConflict: "user_id" }
     );
     navigate("/lobby", { replace: true });

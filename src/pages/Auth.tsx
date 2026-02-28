@@ -58,10 +58,11 @@ const Auth = () => {
           }
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
       toast({
         title: "Something went wrong",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {

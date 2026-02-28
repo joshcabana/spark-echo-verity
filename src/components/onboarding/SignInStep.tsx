@@ -28,8 +28,9 @@ const SignInStep = ({ onNext }: SignInStepProps) => {
       if (error) throw error;
       setOtpSent(true);
       toast({ title: "Code sent", description: "Check your inbox for a 6-digit code." });
-    } catch (err: any) {
-      toast({ title: "Something went wrong", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      toast({ title: "Something went wrong", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -46,8 +47,9 @@ const SignInStep = ({ onNext }: SignInStepProps) => {
       });
       if (error) throw error;
       onNext();
-    } catch (err: any) {
-      toast({ title: "Invalid code", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      toast({ title: "Invalid code", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }

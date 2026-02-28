@@ -37,8 +37,9 @@ const PhoneVerifyStep = ({ onNext }: PhoneVerifyStepProps) => {
       if (error) throw error;
       setOtpSent(true);
       toast({ title: "Code sent", description: "Check your phone for a verification code." });
-    } catch (err: any) {
-      toast({ title: "Something went wrong", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      toast({ title: "Something went wrong", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -56,8 +57,9 @@ const PhoneVerifyStep = ({ onNext }: PhoneVerifyStepProps) => {
       });
       if (error) throw error;
       onNext();
-    } catch (err: any) {
-      toast({ title: "Invalid code", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      toast({ title: "Invalid code", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }

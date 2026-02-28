@@ -7,8 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
+export interface Preferences {
+  interested_in: string;
+  age_range: number[];
+  state: string;
+  rooms: string[];
+}
+
 interface PreferencesStepProps {
-  onComplete: (prefs: Record<string, any>) => void;
+  onComplete: (prefs: Preferences) => void;
 }
 
 const AU_STATES = ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"];

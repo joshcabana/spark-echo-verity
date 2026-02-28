@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => ({
         manualChunks: {
           agora: ["agora-rtc-sdk-ng"],
           "framer-motion": ["framer-motion"],
+          chart: ["recharts"],
         },
       },
     },
