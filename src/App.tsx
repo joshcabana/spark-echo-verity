@@ -7,6 +7,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import AppHeader from "@/components/AppHeader";
 import { lazy, Suspense } from "react";
 
 const Landing = lazy(() => import("./pages/Landing"));
@@ -49,6 +50,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <ErrorBoundary>
+              <AppHeader />
               <Suspense fallback={<LazyFallback />}>
                 <Routes>
                   <Route path="/" element={<Landing />} />
