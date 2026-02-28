@@ -20,12 +20,13 @@ const Profile = () => {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(profile?.display_name ?? "");
   const [uploading, setUploading] = useState(false);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
 
   const displayName = profile?.display_name || user?.email?.split("@")[0] || "User";
   const tokenBalance = profile?.token_balance ?? 0;
   const subscriptionTier = profile?.subscription_tier ?? "free";
   const subscriptionExpiry = profile?.subscription_expires_at;
-  const avatarUrl = profile?.avatar_url;
+  const avatarUrl = localAvatarUrl ?? profile?.avatar_url;
 
   const isPassHolder = subscriptionTier === "pass_monthly" || subscriptionTier === "pass_annual";
 
@@ -75,9 +76,9 @@ const Profile = () => {
         .eq("user_id", user.id);
       if (updateErr) throw updateErr;
 
+      const newUrl = `${urlData.publicUrl}?t=${Date.now()}`;
       toast.success("Avatar updated");
-      // Force re-fetch profile in auth context
-      window.location.reload();
+      setLocalAvatarUrl(newUrl);
     } catch {
       toast.error("Failed to upload avatar");
     } finally {
