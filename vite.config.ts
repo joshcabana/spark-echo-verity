@@ -18,4 +18,14 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          agora: ["agora-rtc-sdk-ng"],
+          "framer-motion": ["framer-motion"],
+        },
+      },
+    },
+  },
 }));

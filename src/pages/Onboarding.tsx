@@ -32,14 +32,19 @@ const Onboarding = () => {
     }
   }, [userTrust]);
 
-  const saveStep = async (nextStep: number, extra: Record<string, any> = {}) => {
+  const saveStep = async (nextStep: number, extra: Partial<{
+    dob: string;
+    phone_verified: boolean;
+    selfie_verified: boolean;
+    safety_pledge_accepted: boolean;
+    preferences: Record<string, any>;
+  }> = {}) => {
     if (!user) return;
-    const payload: Record<string, any> = {
+    await supabase.from("user_trust").upsert({
       user_id: user.id,
       onboarding_step: nextStep,
       ...extra,
-    };
-    await supabase.from("user_trust").upsert(payload as any, { onConflict: "user_id" });
+    }, { onConflict: "user_id" });
   };
 
   const goTo = (nextStep: number, extra: Record<string, any> = {}) => {

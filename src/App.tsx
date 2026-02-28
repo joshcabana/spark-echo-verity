@@ -21,7 +21,15 @@ const Transparency = lazy(() => import("./pages/Transparency"));
 const Appeal = lazy(() => import("./pages/Appeal"));
 const Profile = lazy(() => import("./pages/Profile"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const LazyFallback = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
