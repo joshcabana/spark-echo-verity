@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Shield, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -123,6 +123,26 @@ const Lobby = () => {
     },
   });
 
+  // Matchmaking polling refs
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRetryRef = useRef(0);
+  const pollDropRef = useRef<{ drop_id: string; room_id: string } | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    pollRetryRef.current = 0;
+    pollDropRef.current = null;
+  }, []);
+
+  // Clean up polling on unmount or when matchmaking becomes inactive
+  useEffect(() => {
+    if (!matchmaking.active) stopPolling();
+    return () => stopPolling();
+  }, [matchmaking.active, stopPolling]);
+
   // Join live drop
   const handleJoin = useCallback(async (drop: Drop) => {
     if (!user) return;
@@ -149,14 +169,39 @@ const Lobby = () => {
       if (data.status === "matched") {
         setMatchmaking((m) => ({ ...m, active: false }));
         navigate(`/call/${data.call_id}?channel=${encodeURIComponent(data.agora_channel)}`);
+      } else {
+        // Queued — start polling every 4s, max 10 retries
+        pollRetryRef.current = 0;
+        pollDropRef.current = { drop_id: drop.id, room_id: drop.room_id };
+        pollIntervalRef.current = setInterval(async () => {
+          pollRetryRef.current += 1;
+          if (pollRetryRef.current > 10) {
+            stopPolling();
+            setMatchmaking((m) => ({ ...m, active: false }));
+            toast.error("No match found this time. Try again when the Drop is live.");
+            return;
+          }
+          try {
+            const { data: pollData, error: pollErr } = await supabase.functions.invoke("find-match", {
+              body: pollDropRef.current,
+            });
+            if (pollErr) return;
+            if (pollData?.status === "matched") {
+              stopPolling();
+              setMatchmaking((m) => ({ ...m, active: false }));
+              navigate(`/call/${pollData.call_id}?channel=${encodeURIComponent(pollData.agora_channel)}`);
+            }
+          } catch {
+            // Silent — retry next interval
+          }
+        }, 4000);
       }
-      // If queued, overlay stays open and polls
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to join drop";
       toast.error(message);
       setMatchmaking((m) => ({ ...m, active: false }));
     }
-  }, [user, trustComplete, navigate]);
+  }, [user, trustComplete, navigate, stopPolling]);
 
   // Realtime for drops/RSVPs
   useEffect(() => {

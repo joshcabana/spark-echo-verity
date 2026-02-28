@@ -158,6 +158,11 @@ const LiveCall = () => {
           user_id: user.id,
           partner_id: partnerId,
           channel: channelFromUrl,
+          metadata: {
+            elapsed_seconds: elapsed,
+            my_role: myRole,
+            is_remote_connected: isRemoteConnected,
+          },
         },
       }).then(({ data }) => {
         if (data?.flagged) {
@@ -167,7 +172,7 @@ const LiveCall = () => {
         // Silent fail — moderation must not interrupt call UX
       });
     }
-  }, [phase, elapsed, callId, user, partnerId, channelFromUrl]);
+  }, [phase, elapsed, callId, user, partnerId, channelFromUrl, myRole, isRemoteConnected]);
 
   // Handle choice: write to calls table
   const handleChoice = useCallback(async (choice: "spark" | "pass") => {
@@ -231,7 +236,7 @@ const LiveCall = () => {
     setExitOpen(false);
     await leave();
     navigate("/lobby");
-  }, [navigate, leave]);
+  }, [navigate, leave, callId]);
 
   // Handle report
   const handleReport = useCallback(async (reason: string) => {
