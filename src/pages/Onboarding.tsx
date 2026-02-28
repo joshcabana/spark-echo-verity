@@ -12,16 +12,12 @@ import SelfieStep from "@/components/onboarding/SelfieStep";
 import SafetyPledgeStep from "@/components/onboarding/SafetyPledgeStep";
 import PreferencesStep, { type Preferences } from "@/components/onboarding/PreferencesStep";
 import DropReadyStep from "@/components/onboarding/DropReadyStep";
-import { fetchAuthCapabilities, type AuthCapabilities } from "@/lib/authCapabilities";
-import { REQUIRE_PHONE_VERIFICATION } from "@/lib/runtimeConfig";
 
 const TOTAL_STEPS = 8;
 
 const Onboarding = () => {
   const [step, setStep] = useState(0);
   const [dob, setDob] = useState<string | null>(null);
-  const [authCapabilities, setAuthCapabilities] = useState<AuthCapabilities | null>(null);
-  const [authSettingsError, setAuthSettingsError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user, userTrust } = useAuth();
 
@@ -36,27 +32,6 @@ const Onboarding = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userTrust, navigate]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadCapabilities = async () => {
-      try {
-        const capabilities = await fetchAuthCapabilities();
-        if (!cancelled) {
-          setAuthCapabilities(capabilities);
-          setAuthSettingsError(null);
-        }
-      } catch {
-        if (!cancelled) {
-          setAuthSettingsError("Unable to verify phone provider status right now.");
-        }
-      }
-    };
-
-    loadCapabilities();
-    return () => { cancelled = true; };
-  }, []);
 
   const saveStep = async (nextStep: number, extra: Record<string, unknown> = {}) => {
     if (!user) return;
@@ -92,8 +67,6 @@ const Onboarding = () => {
   };
 
   const progress = ((step + 1) / TOTAL_STEPS) * 100;
-  const phoneEnabled = authCapabilities?.phoneEnabled ?? true;
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border px-6 py-3">
@@ -116,11 +89,7 @@ const Onboarding = () => {
           {step === 3 && (
             <PhoneVerifyStep
               key="phone"
-              onNext={() => goTo(4, { phone_verified: true })}
-              onSkip={() => goTo(4)}
-              phoneEnabled={phoneEnabled}
-              requirePhoneVerification={REQUIRE_PHONE_VERIFICATION}
-              settingsError={authSettingsError}
+              onNext={(verified) => goTo(4, { phone_verified: verified })}
             />
           )}
           {step === 4 && (
