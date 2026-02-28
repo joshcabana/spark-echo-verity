@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import VerityLogo from "@/components/VerityLogo";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -26,13 +27,14 @@ const Navbar = () => {
     >
       <div className="container max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <VerityLogo className="h-7 w-auto" linkTo="/" />
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <a
             href="#how-it-works"
             className="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             How it works
           </a>
+          <ThemeToggle />
           <Link to="/auth">
             <Button variant="gold-outline" size="sm">
               Get verified

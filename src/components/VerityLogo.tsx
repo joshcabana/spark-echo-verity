@@ -9,13 +9,10 @@ interface VerityLogoProps {
 /**
  * Verity brand logo — inline SVG for perfect scaling.
  *
- * Brand colours:
- *   Deep navy  #1B2A4A  (light-mode V)
- *   Silver     #E8EBF0  (dark-mode V)
- *   Coral      #E85D35  (spark accent)
- *
- * The app is dark-themed, so the default V colour is silver/white.
- * If a light-mode toggle is ever added, swap fills via `dark:` classes.
+ * Brand colours (from spec sheet):
+ *   Charcoal  #212121  (light-mode V + text)
+ *   White     #F3F3F3  (dark-mode V + text)
+ *   Gold      #D4AF37  (spark accent — always)
  */
 const VerityLogo = ({
   variant = "full",
@@ -29,30 +26,30 @@ const VerityLogo = ({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={variant === "icon" ? className || "h-8 w-8" : "h-full w-auto"}
-      aria-label="Verity - Australian Speed-Dating"
+      aria-label="Verity — Australian Speed-Dating"
       role="img"
     >
-      {/* V shape */}
+      {/* V shape — uses currentColor so it follows theme */}
       <path
         d="M8 8L24 40L40 8"
-        stroke="#E8EBF0"
+        stroke="currentColor"
         strokeWidth="6"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="dark:stroke-[#E8EBF0] stroke-[#1B2A4A]"
       />
-      {/* Coral-orange spark / dot accent */}
-      <circle
-        cx="38"
-        cy="10"
-        r="5"
-        fill="#E85D35"
-      />
+      {/* Gold spark / dot accent — always #D4AF37 */}
+      <circle cx="38" cy="10" r="5" fill="#D4AF37" />
     </svg>
   );
 
   if (variant === "icon") {
-    return linkTo ? <Link to={linkTo} className="inline-flex">{icon}</Link> : icon;
+    return linkTo ? (
+      <Link to={linkTo} className="inline-flex text-foreground">
+        {icon}
+      </Link>
+    ) : (
+      icon
+    );
   }
 
   /* ---------- full lockup (icon + VERITY text) ---------- */
@@ -62,25 +59,19 @@ const VerityLogo = ({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className || "h-8 w-auto"}
-      aria-label="Verity - Australian Speed-Dating"
+      aria-label="Verity — Australian Speed-Dating"
       role="img"
     >
       {/* V shape */}
       <path
         d="M8 8L24 40L40 8"
-        stroke="#E8EBF0"
+        stroke="currentColor"
         strokeWidth="6"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="dark:stroke-[#E8EBF0] stroke-[#1B2A4A]"
       />
-      {/* Coral-orange spark */}
-      <circle
-        cx="38"
-        cy="10"
-        r="5"
-        fill="#E85D35"
-      />
+      {/* Gold spark */}
+      <circle cx="38" cy="10" r="5" fill="#D4AF37" />
       {/* VERITY wordmark */}
       <text
         x="56"
@@ -89,15 +80,20 @@ const VerityLogo = ({
         fontWeight="600"
         fontSize="22"
         letterSpacing="6"
-        className="dark:fill-[#E8EBF0] fill-[#1B2A4A]"
-        fill="#E8EBF0"
+        fill="currentColor"
       >
         VERITY
       </text>
     </svg>
   );
 
-  return linkTo ? <Link to={linkTo} className="inline-flex">{full}</Link> : full;
+  return linkTo ? (
+    <Link to={linkTo} className="inline-flex text-foreground">
+      {full}
+    </Link>
+  ) : (
+    full
+  );
 };
 
 export default VerityLogo;
