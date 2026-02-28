@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { Shield, User } from "lucide-react";
+import { Shield, User, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -250,7 +250,16 @@ const Lobby = () => {
       <main className="container max-w-2xl mx-auto px-5 pt-8">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
           className="mb-6">
-          <h1 className="font-serif text-3xl md:text-4xl text-foreground mb-2">Upcoming Drops</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="font-serif text-3xl md:text-4xl text-foreground">Upcoming Drops</h1>
+            <button
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["drops"] })}
+              className="w-7 h-7 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+              aria-label="Refresh drops"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <p className="text-sm text-muted-foreground/60 mb-1">Verified 18+ Speed Dating Drops</p>
           <p className="text-muted-foreground max-w-lg leading-relaxed text-sm">
             Scheduled sessions by room. RSVP to reserve your spot — you'll be matched when the Drop goes live.

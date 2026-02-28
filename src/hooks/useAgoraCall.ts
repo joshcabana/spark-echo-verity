@@ -72,9 +72,19 @@ export function useAgoraCall({ appId, channel, token, uid, enabled }: UseAgoraCa
 
       await client.publish([audioTrack, videoTrack]);
       setIsJoined(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to join call";
       console.error("Agora join error:", err);
-      setError(err.message || "Failed to join call");
+      setError(message);
+      // Clean up resources on error to prevent leaks
+      const { audio, video } = localTracksRef.current;
+      audio?.close();
+      video?.close();
+      localTracksRef.current = { audio: null, video: null };
+      if (clientRef.current) {
+        try { await clientRef.current.leave(); } catch { /* ignore */ }
+        clientRef.current = null;
+      }
     }
   }, [appId, channel, token, uid, enabled]);
 

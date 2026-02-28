@@ -64,13 +64,13 @@ const HeroSection = () => {
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
           <Link to="/auth">
-            <Button variant="gold" size="xl" className="group">
+            <Button variant="gold" size="xl" className="group" aria-label="Join your first Drop — sign up for Verity">
               Join your first Drop
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </Link>
           <a href="#how-it-works">
-            <Button variant="gold-outline" size="xl">
+            <Button variant="gold-outline" size="xl" aria-label="Learn how Verity works">
               How it works
             </Button>
           </a>
