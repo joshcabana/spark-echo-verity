@@ -11,9 +11,10 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
-      VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      # Canonical defaults for static CI gates (build/lint/test/typecheck/alignment).
+      VITE_SUPABASE_PROJECT_ID: itdzdyhdkbcxbqgukzis
+      VITE_SUPABASE_URL: https://itdzdyhdkbcxbqgukzis.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: ci_placeholder_anon_key
       VITE_REQUIRE_PHONE_VERIFICATION: "false"
       VITE_REQUIRE_GOOGLE_AUTH: "false"
     steps:
@@ -36,7 +37,11 @@ jobs:
         run: npm run check:no-hardcoded-supabase
 
       - name: Auth settings (if secrets provided)
-        if: ${{ env.VITE_SUPABASE_URL != '' && env.VITE_SUPABASE_PUBLISHABLE_KEY != '' }}
+        if: ${{ secrets.VITE_SUPABASE_URL != '' && secrets.VITE_SUPABASE_PUBLISHABLE_KEY != '' }}
+        env:
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run check:auth-settings
 
       - name: Lint
