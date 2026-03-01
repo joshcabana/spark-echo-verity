@@ -6,8 +6,8 @@ This document is the canonical source of truth for project targeting. If any fil
 
 ## Canonical Production Target
 
-- Supabase project ID: `itdzdyhdkbcxbqgukzis`
-- Supabase URL: `https://itdzdyhdkbcxbqgukzis.supabase.co`
+- Supabase project ID: `lixgbpgemcpdbjzhjknf`
+- Supabase URL: `https://lixgbpgemcpdbjzhjknf.supabase.co`
 - Production domain: `https://getverity.com.au`
 
 ## Alignment Checklist

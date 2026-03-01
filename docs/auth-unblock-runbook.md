@@ -1,6 +1,6 @@
-# Auth Unblock Runbook (`itdzdyhdkbcxbqgukzis`)
+# Auth Unblock Runbook (`lixgbpgemcpdbjzhjknf`)
 
-Canonical Supabase project: `itdzdyhdkbcxbqgukzis`
+Canonical Supabase project: `lixgbpgemcpdbjzhjknf`
 
 Primary source of truth: [docs/environment-matrix.md](./environment-matrix.md)
 
@@ -12,11 +12,11 @@ Confirm these point to the same project:
 - `supabase/config.toml` (`project_id`)
 - deployed site bundle endpoint
 
-Do not repoint to `nhpbxlvogqnqutmflwlk` unless running a planned migration.
+Do not repoint to any other project unless running a planned migration.
 
 ## 2) Configure Providers in Supabase Dashboard
 
-Project: `itdzdyhdkbcxbqgukzis`
+Project: `lixgbpgemcpdbjzhjknf`
 
 1. `Authentication -> SMTP Settings`
 - Set host, port, username, password, sender email.

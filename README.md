@@ -142,7 +142,7 @@ npm run check:no-hardcoded-supabase
 
 ### Auth Provider Policy
 
-- Canonical Supabase project: `itdzdyhdkbcxbqgukzis`
+- Canonical Supabase project: `lixgbpgemcpdbjzhjknf`
 - Canonical source-of-truth matrix: [docs/environment-matrix.md](docs/environment-matrix.md)
 - Runtime policy source: `public.app_config` row `key='auth_policy'`
 - Phone verification mode: `value_json.require_phone_verification` (served via `get-feature-flags`)
