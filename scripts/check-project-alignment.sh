@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CANONICAL_PROJECT_ID="${1:-itdzdyhdkbcxbqgukzis}"
+CANONICAL_PROJECT_ID="${1:-lixgbpgemcpdbjzhjknf}"
 ENV_FILE="${2:-.env}"
 SUPABASE_CONFIG_FILE="${3:-supabase/config.toml}"
 ENV_FALLBACK_FILE="${4:-.env.production}"
